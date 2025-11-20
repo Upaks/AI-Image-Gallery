@@ -1,8 +1,8 @@
-# AI Image Gallery
+#  AI Image Gallery
 
 A full-stack web application where users can upload images, get automatic AI-generated tags and descriptions, and search through their images using text or find similar images.
 
-## Features
+##  Features
 
 ### Core Functionality
 - **Authentication**: Supabase Auth with email/password (sign up, sign in, logout)
@@ -20,17 +20,17 @@ A full-stack web application where users can upload images, get automatic AI-gen
 - **Responsive Design**: Mobile-friendly interface
 - **Real-time Updates**: Background AI processing with status indicators
 
-### Technical Highlights
+###  Technical Highlights
 - **Frontend**: React + Vite + Tailwind CSS
 - **Backend**: FastAPI (Python)
 - **Database**: Supabase (PostgreSQL with RLS)
 - **Storage**: Supabase Storage
-- **AI Service**: Replicate API (BLIP-2 model)
+- **AI Service**: Hugging Face Transformers (Local BLIP model)
 - **Pagination**: 20 images per page with load more
 - **Error Handling**: Graceful handling of AI API failures
 - **Caching**: In-memory cache for AI results
 
-## Quick Start
+##  Quick Start
 
 ### Prerequisites
 - Node.js 18+ and npm
@@ -70,13 +70,16 @@ VITE_SUPABASE_ANON_KEY=your_supabase_anon_key
 ```env
 SUPABASE_URL=your_supabase_project_url
 SUPABASE_SERVICE_ROLE_KEY=your_supabase_service_role_key
-AI_SERVICE=replicate
-AI_API_KEY=your_replicate_api_key
+AI_SERVICE=huggingface
 ```
 
-### 4. Get hugging face API Key
+### 4. Hugging Face Model Setup
 
-1. Add it to `backend/.env` as `AI_API_KEY`
+The application uses Hugging Face Transformers with BLIP model running locally:
+- **No API key required** - runs locally on your machine
+- Model will be downloaded automatically on first use (~1.5GB)
+- First model load takes ~30-60 seconds, then cached for faster processing
+- **FREE** - no per-image costs or API charges
 
 ### 5. Run the Application
 
@@ -94,7 +97,7 @@ npm run dev
 
 Visit `http://localhost:3000` and start uploading images!
 
-## Project Structure
+##  Project Structure
 
 ```
 ai-image-gallery/
@@ -123,27 +126,28 @@ ai-image-gallery/
 └── README.md                 # This file
 ```
 
-## AI Service Comparison
+##  AI Service Comparison
 
 See [AI_SERVICE_COMPARISON.md](./AI_SERVICE_COMPARISON.md) for detailed comparison of:
-- Replicate API (selected)
+- Hugging Face Transformers (Local) - selected
 - OpenAI Vision API
 - Google Cloud Vision API
 - Hugging Face Inference API
 
-**Selected**: Replicate API with BLIP-2 model
-- Cost: ~$0.01 per image
-- Features: Image captioning, easy integration
+**Selected**: Hugging Face Transformers with BLIP model (Local)
+- Cost: **FREE** - runs locally, no API charges
+- Features: Image captioning, local processing, full privacy
+- Model: Salesforce/blip-image-captioning-base
 - Color extraction: Server-side using PIL
 
-## Security
+##  Security
 
 - **Row Level Security (RLS)**: All database queries are filtered by user_id
 - **Protected Routes**: Gallery only accessible when authenticated
 - **API Keys**: Stored in environment variables, never committed
 - **CORS**: Configured for local development only
 
-## Testing
+##  Testing
 
 ### Manual Testing Checklist
 - [ ] Sign up with new account
@@ -159,7 +163,7 @@ See [AI_SERVICE_COMPARISON.md](./AI_SERVICE_COMPARISON.md) for detailed comparis
 - [ ] Logout and verify images are inaccessible
 - [ ] Test on mobile device
 
-## Deployment
+##  Deployment
 
 ### Frontend (Vercel/Netlify)
 1. Build: `npm run build`
@@ -175,7 +179,7 @@ See [AI_SERVICE_COMPARISON.md](./AI_SERVICE_COMPARISON.md) for detailed comparis
 - Database and storage are already cloud-hosted
 - No additional deployment needed
 
-##  Database Schema
+## Database Schema
 
 ```sql
 images
@@ -197,12 +201,13 @@ image_metadata
 └── created_at
 ```
 
-## Troubleshooting
+##  Troubleshooting
 
 **AI processing not working:**
-- Check `backend/.env` has correct `AI_API_KEY`
-- Verify Replicate API key is valid
-- Check backend logs for errors
+- Check `backend/.env` has `AI_SERVICE=huggingface`
+- Verify model downloads successfully on first run (check backend logs)
+- Check backend logs for errors (model loading or processing issues)
+- Ensure sufficient RAM/CPU resources for model processing
 
 **Images not uploading:**
 - Verify Supabase Storage bucket `images` exists and is public
@@ -214,7 +219,7 @@ image_metadata
 - Verify tags/description exist in metadata
 - Check database for metadata records
 
-## Potential Improvements
+##  Potential Improvements
 
 - [ ] Tag editing (users can modify AI-generated tags)
 - [ ] Dark mode toggle
@@ -229,11 +234,11 @@ image_metadata
 - [ ] Progress bar for AI processing
 - [ ] Retry failed AI processing
 
-## License
+##  License
 
 This project is created for a developer challenge. Feel free to use and modify as needed.
 
-## Development Notes
+##  Development Notes
 
 - AI processing happens asynchronously in background
 - Images are processed immediately after upload
@@ -242,13 +247,4 @@ This project is created for a developer challenge. Feel free to use and modify a
 - Color extraction uses PIL for server-side processing
 - Thumbnails are generated client-side before upload
 
-## Evaluation Criteria Met
-
-**Core Functionality (35%)**: All features working
-**AI Service Research (15%)**: Comprehensive comparison document
-**Code Quality (25%)**: Clean, readable, well-structured
-**UI/UX (20%)**: Intuitive, responsive, loading states
-**Technical Decisions (5%)**: Reasonable architecture, efficient API usage
-
----
 
