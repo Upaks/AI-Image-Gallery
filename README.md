@@ -71,6 +71,7 @@ VITE_SUPABASE_ANON_KEY=your_supabase_anon_key
 SUPABASE_URL=your_supabase_project_url
 SUPABASE_SERVICE_ROLE_KEY=your_supabase_service_role_key
 AI_SERVICE=huggingface
+AI_API_KEY=huggingface_api_key
 ```
 
 ### 4. Hugging Face Model Setup
@@ -130,6 +131,7 @@ ai-image-gallery/
 
 See [AI_SERVICE_COMPARISON.md](./AI_SERVICE_COMPARISON.md) for detailed comparison of:
 - Hugging Face Transformers (Local) - selected
+- Replicate API
 - OpenAI Vision API
 - Google Cloud Vision API
 - Hugging Face Inference API
