@@ -1,34 +1,75 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { supabase } from '../lib/supabase'
 import { X, Search, Download } from 'lucide-react'
 import axios from 'axios'
 
-export default function ImageModal({ image, user, onClose, onFindSimilar }) {
+export default function ImageModal({ image, user, onClose, onFindSimilar, onMetadataUpdate }) {
   const [metadata, setMetadata] = useState(image.image_metadata?.[0])
   const [similarImages, setSimilarImages] = useState([])
   const [loadingSimilar, setLoadingSimilar] = useState(false)
+  const [downloading, setDownloading] = useState(false)
+  const intervalRef = useRef(null)
+
+  // Always fetch fresh metadata on mount and when image changes
+  const fetchMetadata = async () => {
+    const { data, error } = await supabase
+      .from('image_metadata')
+      .select('*')
+      .eq('image_id', image.id)
+      .single()
+    
+    if (data && !error) {
+      setMetadata(data)
+      // Immediately update parent component's state when metadata is fetched/updated
+      if (onMetadataUpdate) {
+        onMetadataUpdate(image.id, data)
+      }
+      return data
+    }
+    return null
+  }
 
   useEffect(() => {
-    // Refresh metadata periodically if processing
-    if (metadata?.ai_processing_status === 'processing' || metadata?.ai_processing_status === 'pending') {
-      const interval = setInterval(async () => {
-        const { data } = await supabase
-          .from('image_metadata')
-          .select('*')
-          .eq('image_id', image.id)
-          .single()
-        
-        if (data) {
-          setMetadata(data)
-          if (data.ai_processing_status === 'completed') {
-            clearInterval(interval)
-          }
-        }
-      }, 2000)
+    // Fetch fresh metadata immediately when modal opens
+    const setupPolling = async () => {
+      // Clear any existing interval first
+      if (intervalRef.current) {
+        clearInterval(intervalRef.current)
+        intervalRef.current = null
+      }
 
-      return () => clearInterval(interval)
+      const fetchedMetadata = await fetchMetadata()
+      const status = fetchedMetadata?.ai_processing_status || metadata?.ai_processing_status || image.image_metadata?.[0]?.ai_processing_status
+      
+      // If processing or pending, start polling
+      if (status === 'processing' || status === 'pending') {
+        intervalRef.current = setInterval(async () => {
+          const updatedMetadata = await fetchMetadata()
+          
+          if (updatedMetadata) {
+            // fetchMetadata already updates parent, but explicitly ensure it's synced
+            // Stop polling when processing is complete
+            if (updatedMetadata.ai_processing_status === 'completed' || updatedMetadata.ai_processing_status === 'failed') {
+              if (intervalRef.current) {
+                clearInterval(intervalRef.current)
+                intervalRef.current = null
+              }
+            }
+          }
+        }, 2000) // Poll every 2 seconds
+      }
     }
-  }, [image.id, metadata?.ai_processing_status])
+
+    setupPolling()
+
+    // Cleanup on unmount or when image.id changes
+    return () => {
+      if (intervalRef.current) {
+        clearInterval(intervalRef.current)
+        intervalRef.current = null
+      }
+    }
+  }, [image.id]) // Only depend on image.id
 
   const handleFindSimilar = async () => {
     setLoadingSimilar(true)
@@ -47,11 +88,36 @@ export default function ImageModal({ image, user, onClose, onFindSimilar }) {
     }
   }
 
-  const handleDownload = () => {
-    const link = document.createElement('a')
-    link.href = image.original_path
-    link.download = image.filename
-    link.click()
+  const handleDownload = async () => {
+    setDownloading(true)
+    try {
+      // Fetch the image as a blob to handle CORS issues
+      const response = await fetch(image.original_path)
+      if (!response.ok) {
+        throw new Error('Failed to fetch image')
+      }
+      const blob = await response.blob()
+      
+      // Create object URL from blob
+      const blobUrl = window.URL.createObjectURL(blob)
+      
+      // Create download link
+      const link = document.createElement('a')
+      link.href = blobUrl
+      link.download = image.filename
+      document.body.appendChild(link)
+      link.click()
+      
+      // Cleanup
+      document.body.removeChild(link)
+      window.URL.revokeObjectURL(blobUrl)
+    } catch (error) {
+      console.error('Error downloading image:', error)
+      // Fallback: open in new tab if download fails
+      window.open(image.original_path, '_blank')
+    } finally {
+      setDownloading(false)
+    }
   }
 
   return (
@@ -84,10 +150,11 @@ export default function ImageModal({ image, user, onClose, onFindSimilar }) {
               <div className="mt-4 flex space-x-2">
                 <button
                   onClick={handleDownload}
-                  className="flex items-center space-x-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition"
+                  disabled={downloading}
+                  className="flex items-center space-x-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   <Download className="w-4 h-4" />
-                  <span>Download</span>
+                  <span>{downloading ? 'Downloading...' : 'Download'}</span>
                 </button>
                 {metadata?.tags && metadata.tags.length > 0 && (
                   <button

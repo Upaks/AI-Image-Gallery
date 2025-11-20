@@ -1,45 +1,28 @@
-import { useState, useEffect } from 'react'
-import { supabase } from '../lib/supabase'
 import { Search } from 'lucide-react'
 
 export default function ImageGrid({ images, onImageClick, onColorClick, onFindSimilar, selectedColor }) {
-  const [processingStatus, setProcessingStatus] = useState({})
-
-  useEffect(() => {
-    // Poll for processing status updates
-    const interval = setInterval(async () => {
-      const pendingImages = images.filter(img => 
-        img.image_metadata?.[0]?.ai_processing_status === 'processing' ||
-        img.image_metadata?.[0]?.ai_processing_status === 'pending'
-      )
-
-      if (pendingImages.length > 0) {
-        // Refresh images to get updated metadata
-        const imageIds = pendingImages.map(img => img.id)
-        const { data } = await supabase
-          .from('image_metadata')
-          .select('image_id, ai_processing_status')
-          .in('image_id', imageIds)
-
-        if (data) {
-          const statusMap = {}
-          data.forEach(meta => {
-            statusMap[meta.image_id] = meta.ai_processing_status
-          })
-          setProcessingStatus(statusMap)
-        }
-      }
-    }, 3000) // Poll every 3 seconds
-
-    return () => clearInterval(interval)
-  }, [images])
+  // Note: ImageGrid no longer needs to poll - parent Gallery component handles it
+  // This component just displays the images with their current status
 
   return (
     <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
       {images.map((image) => {
-        const metadata = image.image_metadata?.[0]
-        const status = metadata?.ai_processing_status || 'pending'
+        // Get metadata - handle both array and direct object  
+        const metadataArray = image.image_metadata || []
+        const metadata = Array.isArray(metadataArray) && metadataArray.length > 0 
+          ? metadataArray[0] 
+          : null
+        
+        // Get status from metadata - this is the source of truth
+        const status = metadata?.ai_processing_status
+        
+        // SIMPLE RULE: Only show processing if we EXPLICITLY know it's processing
+        // Default to NOT showing processing - better safe than sorry
         const isProcessing = status === 'processing' || status === 'pending'
+        
+        // If status is 'completed' or 'failed', isProcessing will be false (correct)
+        // If status is undefined/null, isProcessing will be false (don't assume processing)
+        // If metadata has data but no status, isProcessing will be false (data means completed)
 
         return (
           <div

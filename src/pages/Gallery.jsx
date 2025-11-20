@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { supabase } from '../lib/supabase'
 import ImageUpload from '../components/ImageUpload'
 import ImageGrid from '../components/ImageGrid'
@@ -15,11 +15,118 @@ export default function Gallery({ user }) {
   const [selectedImage, setSelectedImage] = useState(null)
   const [page, setPage] = useState(1)
   const [hasMore, setHasMore] = useState(true)
+  const pollingIntervalRef = useRef(null)
+  const imagesRef = useRef([])
   const limit = 20
+
+  // Keep imagesRef in sync with images state
+  useEffect(() => {
+    imagesRef.current = images
+  }, [images])
 
   useEffect(() => {
     loadImages()
   }, [user, searchQuery, colorFilter, page])
+
+  // Function to update a specific image's metadata in the images state
+  const updateImageMetadata = (imageId, newMetadata) => {
+    setImages(prevImages => {
+      const updated = prevImages.map(img => {
+        if (img.id === imageId) {
+          return {
+            ...img,
+            image_metadata: [newMetadata]
+          }
+        }
+        return img
+      })
+      imagesRef.current = updated // Update ref immediately
+      return updated
+    })
+  }
+
+  // Poll for AI processing updates continuously
+  // This runs once on mount and keeps checking for pending images
+  useEffect(() => {
+    // Don't start polling if already running
+    if (pollingIntervalRef.current) {
+      return
+    }
+
+    // Start polling - this runs continuously and checks latest state
+    pollingIntervalRef.current = setInterval(async () => {
+      try {
+        // Always get latest images from ref (always current, not stale closure)
+        const currentImages = imagesRef.current
+        
+        // Find pending images from LATEST state
+        // Only include images that don't have metadata data yet AND are processing/pending
+        const pendingImageIds = currentImages
+          .filter(img => {
+            const metadata = img.image_metadata?.[0]
+            const hasData = metadata && (
+              (metadata.tags && metadata.tags.length > 0) ||
+              (metadata.description && metadata.description.trim().length > 0) ||
+              (metadata.colors && metadata.colors.length > 0)
+            )
+            
+            // Only process if no data exists AND status is processing/pending
+            if (hasData) return false
+            
+            const status = metadata?.ai_processing_status
+            return status === 'processing' || status === 'pending' || !status
+          })
+          .map(img => img.id)
+
+        // If no pending images, just skip this poll (but keep polling running)
+        if (pendingImageIds.length === 0) {
+          return
+        }
+
+        // Fetch updated metadata for pending images
+        const { data: metadataUpdates, error } = await supabase
+          .from('image_metadata')
+          .select('*')
+          .in('image_id', pendingImageIds)
+
+        if (error) {
+          console.error('Error fetching metadata updates:', error)
+          return
+        }
+
+        if (metadataUpdates && metadataUpdates.length > 0) {
+          // Update images state with new metadata
+          setImages(prevImages => {
+            const updated = prevImages.map(img => {
+              const updatedMetadata = metadataUpdates.find(m => m.image_id === img.id)
+              if (updatedMetadata) {
+                return {
+                  ...img,
+                  image_metadata: [updatedMetadata]
+                }
+              }
+              return img
+            })
+
+            // Update ref immediately so next poll has latest state
+            imagesRef.current = updated
+
+            return updated
+          })
+        }
+      } catch (error) {
+        console.error('Error polling for updates:', error)
+      }
+    }, 2000) // Poll every 2 seconds
+
+    // Cleanup: stop polling only on unmount
+    return () => {
+      if (pollingIntervalRef.current) {
+        clearInterval(pollingIntervalRef.current)
+        pollingIntervalRef.current = null
+      }
+    }
+  }, []) // Only run once on mount - polling runs continuously
 
   const loadImages = async () => {
     try {
@@ -94,9 +201,15 @@ export default function Gallery({ user }) {
       if (error) throw error
 
       if (page === 1) {
-        setImages(data || [])
+        const imagesData = data || []
+        setImages(imagesData)
+        imagesRef.current = imagesData // Update ref immediately
       } else {
-        setImages(prev => [...prev, ...(data || [])])
+        setImages(prev => {
+          const updated = [...prev, ...(data || [])]
+          imagesRef.current = updated // Update ref immediately
+          return updated
+        })
       }
 
       setHasMore((data || []).length === limit)
@@ -108,15 +221,8 @@ export default function Gallery({ user }) {
   }
 
   const handleImageUploaded = () => {
-    // Force refresh by resetting page if already 1
-    if (page === 1) {
-      // Force re-fetch by toggling a dependency
-      setPage(0)
-      setTimeout(() => setPage(1), 0)
-    } else {
-      setPage(1)
-    }
-    // Also manually reload images
+    // Simply reload images without messing with page state
+    // This ensures metadata is properly loaded with the images
     loadImages()
   }
 
@@ -150,6 +256,7 @@ export default function Gallery({ user }) {
       console.error('Error finding similar images:', error)
     }
   }
+
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -223,10 +330,11 @@ export default function Gallery({ user }) {
       {/* Image Modal */}
       {selectedImage && (
         <ImageModal
-          image={selectedImage}
+          image={images.find(img => img.id === selectedImage.id) || selectedImage}
           user={user}
           onClose={() => setSelectedImage(null)}
           onFindSimilar={handleFindSimilar}
+          onMetadataUpdate={updateImageMetadata}
         />
       )}
     </div>
