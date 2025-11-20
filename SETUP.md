@@ -89,18 +89,26 @@ git --version
    - **anon/public key** (starts with `eyJ...`)
    - **service_role key** (starts with `eyJ...`) - Keep this secret!
 
-## Step 3: Replicate API Setup
+## Step 3: Hugging Face Model Setup
 
-### 3.1 Create Account
-1. Go to [replicate.com](https://replicate.com)
-2. Sign up (free account works)
-3. Verify your email if required
+The application uses Hugging Face Transformers with BLIP model running **locally** on your machine.
 
-### 3.2 Get API Token
-1. Go to [Account Settings](https://replicate.com/account/api-tokens)
-2. Click **Create token**
-3. Name it: "AI Image Gallery"
-4. Copy the token (starts with `r8_...`)
+### 3.1 No API Key Required
+
+- **FREE** - No API costs or per-image charges
+- Model runs locally on your server
+- Full data privacy (images never leave your server)
+- Model will be downloaded automatically on first use (~1.5GB)
+
+### 3.2 First Run
+
+When you start the backend for the first time:
+1. Model will download automatically from Hugging Face
+2. Initial download: ~1.5GB (one-time only)
+3. Initial model load: ~30-60 seconds (then cached)
+4. Subsequent loads: Fast (uses cached model)
+
+**Note**: Ensure you have sufficient disk space (~2GB) for the model.
 
 ## Step 4: Project Setup
 
@@ -147,8 +155,7 @@ VITE_SUPABASE_ANON_KEY=your_anon_key_here
 ```env
 SUPABASE_URL=https://your-project.supabase.co
 SUPABASE_SERVICE_ROLE_KEY=your_service_role_key_here
-AI_SERVICE=replicate
-AI_API_KEY=r8_your_replicate_token_here
+AI_SERVICE=huggingface
 ```
 
 ⚠️ **Important**: Never commit these files! They're already in `.gitignore`
@@ -217,10 +224,11 @@ Visit: `http://localhost:3000`
 - ✅ Verify RLS policies were created (run schema.sql again)
 
 ### AI processing not working
-- ✅ Check Replicate API key is correct in `backend/.env`
+- ✅ Check `AI_SERVICE=huggingface` in `backend/.env`
 - ✅ Verify backend server is running
 - ✅ Check backend terminal for error messages
-- ✅ Test Replicate API key: Visit [replicate.com/account](https://replicate.com/account)
+- ✅ Verify model downloaded successfully (check first-run logs)
+- ✅ Ensure sufficient RAM/CPU resources for model processing
 
 ### Can't sign up/sign in
 - ✅ Check Supabase project is active (not paused)
@@ -237,7 +245,7 @@ Visit: `http://localhost:3000`
 ## Need Help?
 
 - Check Supabase docs: [supabase.com/docs](https://supabase.com/docs)
-- Check Replicate docs: [replicate.com/docs](https://replicate.com/docs)
+- Check Hugging Face Transformers docs: [huggingface.co/docs/transformers](https://huggingface.co/docs/transformers)
 - Review error messages in browser console and backend terminal
 
 Happy coding! 🎉

@@ -242,10 +242,10 @@ className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4"
 **Status:** ✅ **FULLY IMPLEMENTED**
 
 **Evidence:**
-- `AI_SERVICE_SELECTION.md` - Comprehensive comparison document
-- Compares OpenRouter, Hugging Face, Replicate (3+ options)
+- `AI_SERVICE_COMPARISON.md` - Comprehensive comparison document
+- Compares Hugging Face Transformers (Local), OpenAI, Google, Hugging Face API (4+ options)
 - Includes cost analysis, features, ease of use
-- Decision rationale documented
+- Decision rationale documented (Hugging Face Transformers selected)
 
 **How to Verify:**
 1. Read `AI_SERVICE_SELECTION.md`
@@ -257,9 +257,9 @@ className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4"
 **Status:** ✅ **FULLY IMPLEMENTED**
 
 **Evidence:**
-- `AI_SERVICE_SELECTION.md` exists with detailed comparison
+- `AI_SERVICE_COMPARISON.md` exists with detailed comparison
 - `README.md:128-139` - AI service mentioned
-- Decision documented with rationale
+- Decision documented with rationale (Hugging Face Transformers selected)
 
 **How to Verify:**
 1. Check `AI_SERVICE_SELECTION.md` exists

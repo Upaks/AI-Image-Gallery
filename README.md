@@ -25,7 +25,7 @@ A full-stack web application where users can upload images, get automatic AI-gen
 - **Backend**: FastAPI (Python)
 - **Database**: Supabase (PostgreSQL with RLS)
 - **Storage**: Supabase Storage
-- **AI Service**: Replicate API (BLIP-2 model)
+- **AI Service**: Hugging Face Transformers (Local BLIP model)
 - **Pagination**: 20 images per page with load more
 - **Error Handling**: Graceful handling of AI API failures
 - **Caching**: In-memory cache for AI results
@@ -70,15 +70,16 @@ VITE_SUPABASE_ANON_KEY=your_supabase_anon_key
 ```env
 SUPABASE_URL=your_supabase_project_url
 SUPABASE_SERVICE_ROLE_KEY=your_supabase_service_role_key
-AI_SERVICE=replicate
-AI_API_KEY=your_replicate_api_key
+AI_SERVICE=huggingface
 ```
 
-### 4. Get Replicate API Key
+### 4. Hugging Face Model Setup
 
-1. Sign up at [replicate.com](https://replicate.com)
-2. Get your API token from [replicate.com/account/api-tokens](https://replicate.com/account/api-tokens)
-3. Add it to `backend/.env` as `AI_API_KEY`
+The application uses Hugging Face Transformers with BLIP model running locally:
+- **No API key required** - runs locally on your machine
+- Model will be downloaded automatically on first use (~1.5GB)
+- First model load takes ~30-60 seconds, then cached for faster processing
+- **FREE** - no per-image costs or API charges
 
 ### 5. Run the Application
 
@@ -128,14 +129,15 @@ ai-image-gallery/
 ## 🎨 AI Service Comparison
 
 See [AI_SERVICE_COMPARISON.md](./AI_SERVICE_COMPARISON.md) for detailed comparison of:
-- Replicate API (selected)
+- Hugging Face Transformers (Local) - selected
 - OpenAI Vision API
 - Google Cloud Vision API
 - Hugging Face Inference API
 
-**Selected**: Replicate API with BLIP-2 model
-- Cost: ~$0.01 per image
-- Features: Image captioning, easy integration
+**Selected**: Hugging Face Transformers with BLIP model (Local)
+- Cost: **FREE** - runs locally, no API charges
+- Features: Image captioning, local processing, full privacy
+- Model: Salesforce/blip-image-captioning-base
 - Color extraction: Server-side using PIL
 
 ## 🔒 Security
@@ -202,9 +204,10 @@ image_metadata
 ## 🐛 Troubleshooting
 
 **AI processing not working:**
-- Check `backend/.env` has correct `AI_API_KEY`
-- Verify Replicate API key is valid
-- Check backend logs for errors
+- Check `backend/.env` has `AI_SERVICE=huggingface`
+- Verify model downloads successfully on first run (check backend logs)
+- Check backend logs for errors (model loading or processing issues)
+- Ensure sufficient RAM/CPU resources for model processing
 
 **Images not uploading:**
 - Verify Supabase Storage bucket `images` exists and is public
