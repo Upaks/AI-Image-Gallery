@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom'
 import { supabase } from './lib/supabase'
+import { ThemeProvider } from './contexts/ThemeContext'
 import SignIn from './pages/SignIn'
 import SignUp from './pages/SignUp'
 import Gallery from './pages/Gallery'
@@ -29,29 +30,33 @@ function App() {
 
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
-      </div>
+      <ThemeProvider>
+        <div className="min-h-screen flex items-center justify-center bg-white dark:bg-gray-900">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 dark:border-blue-400"></div>
+        </div>
+      </ThemeProvider>
     )
   }
 
   return (
-    <Router>
-      <Routes>
-        <Route
-          path="/signin"
-          element={user ? <Navigate to="/" replace /> : <SignIn />}
-        />
-        <Route
-          path="/signup"
-          element={user ? <Navigate to="/" replace /> : <SignUp />}
-        />
-        <Route
-          path="/"
-          element={user ? <Gallery user={user} /> : <Navigate to="/signin" replace />}
-        />
-      </Routes>
-    </Router>
+    <ThemeProvider>
+      <Router>
+        <Routes>
+          <Route
+            path="/signin"
+            element={user ? <Navigate to="/" replace /> : <SignIn />}
+          />
+          <Route
+            path="/signup"
+            element={user ? <Navigate to="/" replace /> : <SignUp />}
+          />
+          <Route
+            path="/"
+            element={user ? <Gallery user={user} /> : <Navigate to="/signin" replace />}
+          />
+        </Routes>
+      </Router>
+    </ThemeProvider>
   )
 }
 

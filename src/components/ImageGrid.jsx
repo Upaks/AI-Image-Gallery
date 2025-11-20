@@ -27,7 +27,7 @@ export default function ImageGrid({ images, onImageClick, onColorClick, onFindSi
         return (
           <div
             key={image.id}
-            className="group relative aspect-square bg-gray-200 rounded-lg overflow-hidden cursor-pointer hover:shadow-lg transition-shadow"
+            className="group relative aspect-square bg-gray-200 dark:bg-gray-700 rounded-lg overflow-hidden cursor-pointer hover:shadow-lg dark:hover:shadow-gray-800 transition-shadow"
             onClick={() => onImageClick(image)}
           >
             <img
@@ -73,7 +73,7 @@ export default function ImageGrid({ images, onImageClick, onColorClick, onFindSi
                       onColorClick(color)
                     }}
                     className={`w-4 h-4 rounded-full border-2 ${
-                      selectedColor === color ? 'border-white ring-2 ring-blue-500' : 'border-gray-300'
+                      selectedColor === color ? 'border-white dark:border-gray-200 ring-2 ring-blue-500 dark:ring-blue-400' : 'border-gray-300 dark:border-gray-600'
                     }`}
                     style={{ backgroundColor: color }}
                     title={`Filter by ${color}`}
@@ -89,7 +89,7 @@ export default function ImageGrid({ images, onImageClick, onColorClick, onFindSi
                   e.stopPropagation()
                   onFindSimilar(image.id)
                 }}
-                className="absolute top-2 left-2 bg-white/90 hover:bg-white text-gray-800 px-2 py-1 rounded text-xs font-medium opacity-0 group-hover:opacity-100 transition-opacity flex items-center space-x-1"
+                className="absolute top-2 left-2 bg-white/90 dark:bg-gray-800/90 hover:bg-white dark:hover:bg-gray-800 text-gray-800 dark:text-gray-200 px-2 py-1 rounded text-xs font-medium opacity-0 group-hover:opacity-100 transition-opacity flex items-center space-x-1"
               >
                 <Search className="w-3 h-3" />
                 <span>Similar</span>

@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react'
 import { supabase } from '../lib/supabase'
-import { X, Search, Download } from 'lucide-react'
+import { X, Search, Download, Edit2, Plus, Save } from 'lucide-react'
 import axios from 'axios'
 
 export default function ImageModal({ image, user, onClose, onFindSimilar, onMetadataUpdate }) {
@@ -8,6 +8,10 @@ export default function ImageModal({ image, user, onClose, onFindSimilar, onMeta
   const [similarImages, setSimilarImages] = useState([])
   const [loadingSimilar, setLoadingSimilar] = useState(false)
   const [downloading, setDownloading] = useState(false)
+  const [editingTags, setEditingTags] = useState(false)
+  const [editedTags, setEditedTags] = useState([])
+  const [newTag, setNewTag] = useState('')
+  const [savingTags, setSavingTags] = useState(false)
   const intervalRef = useRef(null)
 
   // Always fetch fresh metadata on mount and when image changes
@@ -102,11 +106,11 @@ export default function ImageModal({ image, user, onClose, onFindSimilar, onMeta
       const blobUrl = window.URL.createObjectURL(blob)
       
       // Create download link
-      const link = document.createElement('a')
+    const link = document.createElement('a')
       link.href = blobUrl
-      link.download = image.filename
+    link.download = image.filename
       document.body.appendChild(link)
-      link.click()
+    link.click()
       
       // Cleanup
       document.body.removeChild(link)
@@ -120,20 +124,117 @@ export default function ImageModal({ image, user, onClose, onFindSimilar, onMeta
     }
   }
 
+  const handleEditTags = () => {
+    // Initialize editedTags with current tags when entering edit mode
+    const currentTags = metadata?.tags && Array.isArray(metadata.tags) ? [...metadata.tags] : []
+    setEditedTags(currentTags)
+    setEditingTags(true)
+    console.log('Entering edit mode, initial tags:', currentTags)
+  }
+
+  const handleCancelEdit = () => {
+    setEditingTags(false)
+    setEditedTags([])
+    setNewTag('')
+  }
+
+  const handleRemoveTag = (indexToRemove) => {
+    setEditedTags(prevTags => {
+      const updated = prevTags.filter((_, idx) => idx !== indexToRemove)
+      console.log('After removing tag, editedTags:', updated)
+      return updated
+    })
+  }
+
+  const handleAddTag = () => {
+    const trimmedTag = newTag.trim().toLowerCase()
+    if (trimmedTag && !editedTags.map(t => t.toLowerCase()).includes(trimmedTag)) {
+      setEditedTags(prevTags => {
+        const updated = [...prevTags, trimmedTag]
+        console.log('After adding tag, editedTags:', updated)
+        return updated
+      })
+      setNewTag('')
+      // Auto-focus back to input for better UX
+      setTimeout(() => {
+        const input = document.querySelector('input[placeholder="Add new tag..."]')
+        if (input) input.focus()
+      }, 0)
+    } else if (trimmedTag) {
+      // Tag already exists - provide feedback
+      alert('This tag already exists')
+    }
+  }
+
+  const handleSaveTags = async () => {
+    if (!metadata) return
+    
+    setSavingTags(true)
+    
+    // Log the tags we're about to save - this is critical for debugging
+    console.log('=== SAVING TAGS ===')
+    console.log('editedTags state:', editedTags)
+    console.log('editedTags length:', editedTags.length)
+    console.log('editedTags is array?', Array.isArray(editedTags))
+    
+    try {
+      // Ensure editedTags is an array
+      const tagsToSave = Array.isArray(editedTags) ? [...editedTags] : []
+      
+      console.log('tagsToSave (final):', tagsToSave)
+      
+      // Update metadata in database
+      const { data, error } = await supabase
+        .from('image_metadata')
+        .update({ tags: tagsToSave })
+        .eq('image_id', image.id)
+        .select()
+        .single()
+
+      if (error) {
+        console.error('Supabase error:', error)
+        throw error
+      }
+
+      if (!data) {
+        throw new Error('No data returned from update')
+      }
+
+      console.log('Data returned from Supabase:', data)
+      console.log('Tags in response:', data.tags)
+
+      // Update local state with fresh data from database
+      setMetadata(data)
+      
+      // Update parent component
+      if (onMetadataUpdate) {
+        onMetadataUpdate(image.id, data)
+      }
+
+      setEditingTags(false)
+      setNewTag('')
+    } catch (error) {
+      console.error('Error saving tags:', error)
+      alert(`Failed to save tags: ${error.message || 'Please try again.'}`)
+    } finally {
+      setSavingTags(false)
+    }
+  }
+
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50 p-4" onClick={onClose}>
+    <div className="fixed inset-0 bg-black bg-opacity-75 dark:bg-opacity-80 flex items-center justify-center z-50 p-4" onClick={onClose}>
       <div
-        className="bg-white rounded-lg max-w-4xl w-full max-h-[90vh] overflow-y-auto"
+        className="bg-white dark:bg-gray-800 rounded-lg max-w-4xl w-full max-h-[90vh] overflow-y-auto"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
-        <div className="flex items-center justify-between p-4 border-b border-gray-200">
-          <h2 className="text-lg font-semibold text-gray-900">{image.filename}</h2>
+        <div className="flex items-center justify-between p-4 border-b border-gray-200 dark:border-gray-700">
+          <h2 className="text-lg font-semibold text-gray-900 dark:text-white">{image.filename}</h2>
           <button
             onClick={onClose}
-            className="p-2 hover:bg-gray-100 rounded-lg transition"
+            className="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition"
           >
-            <X className="w-5 h-5 text-gray-500" />
+            <X className="w-5 h-5 text-gray-500 dark:text-gray-400" />
           </button>
         </div>
 
@@ -160,7 +261,7 @@ export default function ImageModal({ image, user, onClose, onFindSimilar, onMeta
                   <button
                     onClick={handleFindSimilar}
                     disabled={loadingSimilar}
-                    className="flex items-center space-x-2 px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition disabled:opacity-50"
+                  className="flex items-center space-x-2 px-4 py-2 bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-200 rounded-lg hover:bg-gray-300 dark:hover:bg-gray-600 transition disabled:opacity-50"
                   >
                     <Search className="w-4 h-4" />
                     <span>{loadingSimilar ? 'Finding...' : 'Find Similar'}</span>
@@ -174,52 +275,144 @@ export default function ImageModal({ image, user, onClose, onFindSimilar, onMeta
               {/* Processing Status */}
               {metadata?.ai_processing_status === 'processing' || metadata?.ai_processing_status === 'pending' ? (
                 <div className="text-center py-8">
-                  <div className="w-12 h-12 border-4 border-blue-600 border-t-transparent rounded-full animate-spin mx-auto mb-4" />
-                  <p className="text-gray-600">AI is analyzing this image...</p>
+                  <div className="w-12 h-12 border-4 border-blue-600 dark:border-blue-400 border-t-transparent rounded-full animate-spin mx-auto mb-4" />
+                  <p className="text-gray-600 dark:text-gray-400">AI is analyzing this image...</p>
                 </div>
               ) : metadata?.ai_processing_status === 'failed' ? (
                 <div className="text-center py-8">
-                  <p className="text-red-600">AI processing failed. Please try again.</p>
+                  <p className="text-red-600 dark:text-red-400">AI processing failed. Please try again.</p>
                 </div>
               ) : (
                 <>
                   {/* Description */}
                   {metadata?.description && (
                     <div>
-                      <h3 className="text-sm font-semibold text-gray-700 mb-2">Description</h3>
-                      <p className="text-gray-600">{metadata.description}</p>
+                      <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">Description</h3>
+                      <p className="text-gray-600 dark:text-gray-400">{metadata.description}</p>
                     </div>
                   )}
 
                   {/* Tags */}
-                  {metadata?.tags && metadata.tags.length > 0 && (
                     <div>
-                      <h3 className="text-sm font-semibold text-gray-700 mb-2">Tags</h3>
+                    <div className="flex items-center justify-between mb-2">
+                      <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300">Tags</h3>
+                      {!editingTags && (
+                        <button
+                          onClick={handleEditTags}
+                          className="flex items-center space-x-1 text-xs text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300"
+                        >
+                          <Edit2 className="w-3 h-3" />
+                          <span>Edit</span>
+                        </button>
+                      )}
+                    </div>
+                    
+                    {editingTags ? (
+                      <div className="space-y-3">
+                        {/* Editable tags */}
+                        <div className="flex flex-wrap gap-2">
+                          {editedTags.map((tag, idx) => (
+                            <span
+                              key={idx}
+                              className="inline-flex items-center space-x-1 px-3 py-1 bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-300 rounded-full text-sm"
+                            >
+                              <span>{tag}</span>
+                              <button
+                                onClick={() => handleRemoveTag(idx)}
+                                className="ml-1 hover:text-red-600"
+                                type="button"
+                              >
+                                <X className="w-3 h-3" />
+                              </button>
+                            </span>
+                          ))}
+                        </div>
+                        
+                        {/* Add new tag */}
+                        <div className="space-y-2">
+                          <div className="flex space-x-2">
+                            <input
+                              type="text"
+                              value={newTag}
+                              onChange={(e) => setNewTag(e.target.value)}
+                              onKeyDown={(e) => {
+                                if (e.key === 'Enter') {
+                                  e.preventDefault()
+                                  handleAddTag()
+                                }
+                              }}
+                              placeholder="Type tag and press Enter or click +"
+                              className="flex-1 px-3 py-1 border border-gray-300 dark:border-gray-600 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-500"
+                              autoFocus
+                            />
+                            <button
+                              onClick={handleAddTag}
+                              disabled={!newTag.trim()}
+                              type="button"
+                              className="px-4 py-1 bg-green-600 text-white rounded-lg hover:bg-green-700 transition disabled:opacity-50 disabled:cursor-not-allowed flex items-center space-x-1"
+                              title="Add tag"
+                            >
+                              <Plus className="w-4 h-4" />
+                              <span className="text-sm">Add</span>
+                            </button>
+                          </div>
+                          <p className="text-xs text-gray-500 dark:text-gray-400">
+                            💡 Tip: Type a tag and press <kbd className="px-1 py-0.5 bg-gray-100 dark:bg-gray-700 rounded text-xs">Enter</kbd> or click <kbd className="px-1 py-0.5 bg-gray-100 dark:bg-gray-700 rounded text-xs">Add</kbd> to add it to the list above, then click <kbd className="px-1 py-0.5 bg-gray-100 dark:bg-gray-700 rounded text-xs">Save</kbd> when done
+                          </p>
+                        </div>
+                        
+                        {/* Save/Cancel buttons */}
+                        <div className="flex space-x-2">
+                          <button
+                            onClick={handleSaveTags}
+                            disabled={savingTags}
+                            type="button"
+                            className="flex items-center space-x-1 px-3 py-1 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition disabled:opacity-50 text-sm"
+                          >
+                            <Save className="w-3 h-3" />
+                            <span>{savingTags ? 'Saving...' : 'Save'}</span>
+                          </button>
+                          <button
+                            onClick={handleCancelEdit}
+                            disabled={savingTags}
+                            type="button"
+                            className="flex items-center space-x-1 px-3 py-1 bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-200 rounded-lg hover:bg-gray-300 dark:hover:bg-gray-600 transition disabled:opacity-50 text-sm"
+                          >
+                            <X className="w-3 h-3" />
+                            <span>Cancel</span>
+                          </button>
+                        </div>
+                      </div>
+                    ) : (
+                      Array.isArray(metadata?.tags) && metadata.tags.length > 0 ? (
                       <div className="flex flex-wrap gap-2">
                         {metadata.tags.map((tag, idx) => (
                           <span
                             key={idx}
-                            className="px-3 py-1 bg-blue-100 text-blue-800 rounded-full text-sm"
+                              className="px-3 py-1 bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-300 rounded-full text-sm"
                           >
                             {tag}
                           </span>
                         ))}
                       </div>
+                      ) : (
+                        <p className="text-sm text-gray-500 dark:text-gray-400">No tags yet. Click Edit to add tags.</p>
+                      )
+                    )}
                     </div>
-                  )}
 
                   {/* Colors */}
                   {metadata?.colors && metadata.colors.length > 0 && (
                     <div>
-                      <h3 className="text-sm font-semibold text-gray-700 mb-2">Dominant Colors</h3>
+                      <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">Dominant Colors</h3>
                       <div className="flex gap-2">
                         {metadata.colors.map((color, idx) => (
                           <div key={idx} className="text-center">
                             <div
-                              className="w-16 h-16 rounded-lg border-2 border-gray-200 mb-1"
+                              className="w-16 h-16 rounded-lg border-2 border-gray-200 dark:border-gray-600 mb-1"
                               style={{ backgroundColor: color }}
                             />
-                            <p className="text-xs text-gray-600">{color}</p>
+                            <p className="text-xs text-gray-600 dark:text-gray-400">{color}</p>
                           </div>
                         ))}
                       </div>
@@ -228,8 +421,8 @@ export default function ImageModal({ image, user, onClose, onFindSimilar, onMeta
 
                   {/* Upload Date */}
                   <div>
-                    <h3 className="text-sm font-semibold text-gray-700 mb-2">Uploaded</h3>
-                    <p className="text-gray-600">
+                    <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">Uploaded</h3>
+                    <p className="text-gray-600 dark:text-gray-400">
                       {new Date(image.uploaded_at).toLocaleString()}
                     </p>
                   </div>
@@ -240,8 +433,8 @@ export default function ImageModal({ image, user, onClose, onFindSimilar, onMeta
 
           {/* Similar Images */}
           {similarImages.length > 0 && (
-            <div className="mt-6 pt-6 border-t border-gray-200">
-              <h3 className="text-sm font-semibold text-gray-700 mb-4">Similar Images</h3>
+            <div className="mt-6 pt-6 border-t border-gray-200 dark:border-gray-700">
+              <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-4">Similar Images</h3>
               <div className="grid grid-cols-5 gap-2">
                 {similarImages.map((similar) => (
                   <img

@@ -259,16 +259,16 @@ export default function Gallery({ user }) {
 
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
       {/* Header */}
-      <header className="bg-white shadow-sm border-b border-gray-200">
+      <header className="bg-white dark:bg-gray-800 shadow-sm border-b border-gray-200 dark:border-gray-700">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
           <div className="flex items-center justify-between">
             <div className="flex items-center space-x-3">
-              <div className="w-10 h-10 bg-blue-600 rounded-lg flex items-center justify-center">
+              <div className="w-10 h-10 bg-blue-600 dark:bg-blue-500 rounded-lg flex items-center justify-center">
                 <ImageIcon className="w-6 h-6 text-white" />
               </div>
-              <h1 className="text-2xl font-bold text-gray-900">AI Image Gallery</h1>
+              <h1 className="text-2xl font-bold text-gray-900 dark:text-white">AI Image Gallery</h1>
             </div>
             <UserMenu user={user} />
           </div>
@@ -290,14 +290,14 @@ export default function Gallery({ user }) {
         {loading && images.length === 0 ? (
           <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
             {[...Array(10)].map((_, i) => (
-              <div key={i} className="aspect-square bg-gray-200 rounded-lg animate-pulse" />
+              <div key={i} className="aspect-square bg-gray-200 dark:bg-gray-700 rounded-lg animate-pulse" />
             ))}
           </div>
         ) : images.length === 0 ? (
           <div className="text-center py-12">
-            <ImageIcon className="w-16 h-16 text-gray-400 mx-auto mb-4" />
-            <h3 className="text-lg font-medium text-gray-900 mb-2">No images found</h3>
-            <p className="text-gray-600">
+            <ImageIcon className="w-16 h-16 text-gray-400 dark:text-gray-500 mx-auto mb-4" />
+            <h3 className="text-lg font-medium text-gray-900 dark:text-gray-100 mb-2">No images found</h3>
+            <p className="text-gray-600 dark:text-gray-400">
               {searchQuery || colorFilter
                 ? 'Try adjusting your search or filters'
                 : 'Upload your first image to get started'}
@@ -317,7 +317,7 @@ export default function Gallery({ user }) {
                 <button
                   onClick={handleLoadMore}
                   disabled={loading}
-                  className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50"
+                  className="px-6 py-2 bg-blue-600 dark:bg-blue-500 text-white rounded-lg hover:bg-blue-700 dark:hover:bg-blue-600 disabled:opacity-50"
                 >
                   {loading ? 'Loading...' : 'Load More'}
                 </button>

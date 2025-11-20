@@ -192,8 +192,8 @@ export default function ImageUpload({ user, onUploadComplete }) {
     <div
       className={`border-2 border-dashed rounded-lg p-8 text-center transition-colors ${
         isDragging
-          ? 'border-blue-500 bg-blue-50'
-          : 'border-gray-300 bg-white hover:border-gray-400'
+          ? 'border-blue-500 dark:border-blue-400 bg-blue-50 dark:bg-blue-900/20'
+          : 'border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 hover:border-gray-400 dark:hover:border-gray-500'
       }`}
       onDragOver={handleDragOver}
       onDragLeave={handleDragLeave}
@@ -210,22 +210,22 @@ export default function ImageUpload({ user, onUploadComplete }) {
       
       <div className="space-y-4">
         <div className="flex justify-center">
-          <div className="w-16 h-16 bg-blue-100 rounded-full flex items-center justify-center">
-            <Upload className="w-8 h-8 text-blue-600" />
+          <div className="w-16 h-16 bg-blue-100 dark:bg-blue-900/30 rounded-full flex items-center justify-center">
+            <Upload className="w-8 h-8 text-blue-600 dark:text-blue-400" />
           </div>
         </div>
         
         <div>
-          <p className="text-lg font-medium text-gray-900">
+          <p className="text-lg font-medium text-gray-900 dark:text-gray-100">
             {uploading ? 'Uploading images...' : 'Drag & drop images here'}
           </p>
-          <p className="text-sm text-gray-500 mt-1">
+          <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
             or click to select files (JPEG, PNG)
           </p>
         </div>
 
         {error && (
-          <div className="p-3 bg-red-50 border border-red-200 text-red-700 rounded text-sm">
+          <div className="p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 text-red-700 dark:text-red-400 rounded text-sm">
             {error}
           </div>
         )}
@@ -233,7 +233,7 @@ export default function ImageUpload({ user, onUploadComplete }) {
         <button
           onClick={() => fileInputRef.current?.click()}
           disabled={uploading}
-          className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition"
+          className="px-6 py-2 bg-blue-600 dark:bg-blue-500 text-white rounded-lg hover:bg-blue-700 dark:hover:bg-blue-600 disabled:opacity-50 disabled:cursor-not-allowed transition"
         >
           {uploading ? 'Uploading...' : 'Select Images'}
         </button>
@@ -244,13 +244,13 @@ export default function ImageUpload({ user, onUploadComplete }) {
               <div key={filename} className="flex items-center justify-center space-x-2 text-sm">
                 {status === 'completed' ? (
                   <>
-                    <Check className="w-4 h-4 text-green-500" />
-                    <span className="text-green-600">{filename}</span>
+                    <Check className="w-4 h-4 text-green-500 dark:text-green-400" />
+                    <span className="text-green-600 dark:text-green-400">{filename}</span>
                   </>
                 ) : (
                   <>
-                    <div className="w-4 h-4 border-2 border-blue-600 border-t-transparent rounded-full animate-spin" />
-                    <span className="text-gray-600">{filename}</span>
+                    <div className="w-4 h-4 border-2 border-blue-600 dark:border-blue-400 border-t-transparent rounded-full animate-spin" />
+                    <span className="text-gray-600 dark:text-gray-400">{filename}</span>
                   </>
                 )}
               </div>
