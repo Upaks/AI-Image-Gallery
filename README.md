@@ -1,10 +1,10 @@
-# 🎨 AI Image Gallery
+#  AI Image Gallery
 
 A full-stack web application where users can upload images, get automatic AI-generated tags and descriptions, and search through their images using text or find similar images.
 
-## 📋 Features
+##  Features
 
-### ✅ Core Functionality
+### Core Functionality
 - **Authentication**: Supabase Auth with email/password (sign up, sign in, logout)
 - **Image Upload**: Drag & drop or click to upload multiple images (JPEG, PNG)
 - **Thumbnail Generation**: Automatic 300x300 thumbnail creation
@@ -20,7 +20,7 @@ A full-stack web application where users can upload images, get automatic AI-gen
 - **Responsive Design**: Mobile-friendly interface
 - **Real-time Updates**: Background AI processing with status indicators
 
-### 🎯 Technical Highlights
+###  Technical Highlights
 - **Frontend**: React + Vite + Tailwind CSS
 - **Backend**: FastAPI (Python)
 - **Database**: Supabase (PostgreSQL with RLS)
@@ -30,7 +30,7 @@ A full-stack web application where users can upload images, get automatic AI-gen
 - **Error Handling**: Graceful handling of AI API failures
 - **Caching**: In-memory cache for AI results
 
-## 🚀 Quick Start
+##  Quick Start
 
 ### Prerequisites
 - Node.js 18+ and npm
@@ -70,7 +70,8 @@ VITE_SUPABASE_ANON_KEY=your_supabase_anon_key
 ```env
 SUPABASE_URL=your_supabase_project_url
 SUPABASE_SERVICE_ROLE_KEY=your_supabase_service_role_key
-AI_SERVICE=huggingface
+AI_SERVICE=replicate
+AI_API_KEY=your_replicate_api_key
 ```
 
 ### 4. Hugging Face Model Setup
@@ -97,7 +98,7 @@ npm run dev
 
 Visit `http://localhost:3000` and start uploading images!
 
-## 📁 Project Structure
+##  Project Structure
 
 ```
 ai-image-gallery/
@@ -126,10 +127,10 @@ ai-image-gallery/
 └── README.md                 # This file
 ```
 
-## 🎨 AI Service Comparison
+##  AI Service Comparison
 
 See [AI_SERVICE_COMPARISON.md](./AI_SERVICE_COMPARISON.md) for detailed comparison of:
-- Hugging Face Transformers (Local) - selected
+- Replicate API (selected)
 - OpenAI Vision API
 - Google Cloud Vision API
 - Hugging Face Inference API
@@ -140,14 +141,14 @@ See [AI_SERVICE_COMPARISON.md](./AI_SERVICE_COMPARISON.md) for detailed comparis
 - Model: Salesforce/blip-image-captioning-base
 - Color extraction: Server-side using PIL
 
-## 🔒 Security
+##  Security
 
 - **Row Level Security (RLS)**: All database queries are filtered by user_id
 - **Protected Routes**: Gallery only accessible when authenticated
 - **API Keys**: Stored in environment variables, never committed
 - **CORS**: Configured for local development only
 
-## 🧪 Testing
+##  Testing
 
 ### Manual Testing Checklist
 - [ ] Sign up with new account
@@ -163,7 +164,7 @@ See [AI_SERVICE_COMPARISON.md](./AI_SERVICE_COMPARISON.md) for detailed comparis
 - [ ] Logout and verify images are inaccessible
 - [ ] Test on mobile device
 
-## 🚀 Deployment
+##  Deployment
 
 ### Frontend (Vercel/Netlify)
 1. Build: `npm run build`
@@ -179,7 +180,7 @@ See [AI_SERVICE_COMPARISON.md](./AI_SERVICE_COMPARISON.md) for detailed comparis
 - Database and storage are already cloud-hosted
 - No additional deployment needed
 
-## 📊 Database Schema
+## Database Schema
 
 ```sql
 images
@@ -201,7 +202,7 @@ image_metadata
 └── created_at
 ```
 
-## 🐛 Troubleshooting
+##  Troubleshooting
 
 **AI processing not working:**
 - Check `backend/.env` has `AI_SERVICE=huggingface`
@@ -219,7 +220,7 @@ image_metadata
 - Verify tags/description exist in metadata
 - Check database for metadata records
 
-## 🔮 Potential Improvements
+##  Potential Improvements
 
 - [ ] Tag editing (users can modify AI-generated tags)
 - [ ] Dark mode toggle
@@ -234,11 +235,11 @@ image_metadata
 - [ ] Progress bar for AI processing
 - [ ] Retry failed AI processing
 
-## 📝 License
+##  License
 
 This project is created for a developer challenge. Feel free to use and modify as needed.
 
-## 👨‍💻 Development Notes
+##  Development Notes
 
 - AI processing happens asynchronously in background
 - Images are processed immediately after upload
@@ -247,15 +248,4 @@ This project is created for a developer challenge. Feel free to use and modify a
 - Color extraction uses PIL for server-side processing
 - Thumbnails are generated client-side before upload
 
-## 🎯 Evaluation Criteria Met
-
-✅ **Core Functionality (35%)**: All features working
-✅ **AI Service Research (15%)**: Comprehensive comparison document
-✅ **Code Quality (25%)**: Clean, readable, well-structured
-✅ **UI/UX (20%)**: Intuitive, responsive, loading states
-✅ **Technical Decisions (5%)**: Reasonable architecture, efficient API usage
-
----
-
-Built with ❤️ for the AI Image Gallery Challenge
 
