@@ -8,7 +8,7 @@ const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || ''
 // Create axios instance with base URL
 const api = axios.create({
   baseURL: API_BASE_URL,
-  timeout: 60000, // 60 seconds timeout for AI processing
+  timeout: 300000, // 5 minutes timeout for AI processing (model download can take time on first run)
 })
 
 export default api

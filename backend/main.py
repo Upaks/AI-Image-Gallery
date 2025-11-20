@@ -198,22 +198,62 @@ async def process_with_huggingface(image_url: str) -> dict:
         async with _model_lock:
             # Double-check after acquiring lock (pattern for thread-safe singleton)
             if _blip_processor is None or _blip_model is None:
-                log_info("Loading BLIP model (first time: 30-60s download, then cached)")
+                log_info("Loading BLIP model (first time: 2-5 minutes download on Railway, then cached)")
                 
                 # Load model in thread pool to avoid blocking
                 def load_model():
-                    processor = BlipProcessor.from_pretrained("Salesforce/blip-image-captioning-base")
-                    model = BlipForConditionalGeneration.from_pretrained("Salesforce/blip-image-captioning-base")
-                # Ensure model is on CPU explicitly
-                    model = model.to("cpu")
-                    model.eval()  # Set to evaluation mode
-                    return processor, model
+                    import sys
+                    try:
+                        # Force log flush - print will definitely show in Railway logs
+                        print("=" * 80, file=sys.stderr, flush=True)
+                        print("MODEL DOWNLOAD STARTED - This may take 5-10 minutes on Railway", file=sys.stderr, flush=True)
+                        print("=" * 80, file=sys.stderr, flush=True)
+                        log_info("Starting model download from Hugging Face")
+                        
+                        # Enable Hugging Face progress bars (will show download progress)
+                        import os
+                        os.environ["TRANSFORMERS_VERBOSITY"] = "info"
+                        
+                        log_info("Downloading processor (tokenizer/config)...")
+                        print("[MODEL] Downloading processor...", file=sys.stderr, flush=True)
+                        processor = BlipProcessor.from_pretrained("Salesforce/blip-image-captioning-base")
+                        print("[MODEL] Processor downloaded!", file=sys.stderr, flush=True)
+                        log_info("Processor loaded successfully")
+                        
+                        log_info("Downloading model weights (~1.5GB - this takes 5-10 minutes on Railway)")
+                        print("[MODEL] Downloading model weights (~1.5GB)...", file=sys.stderr, flush=True)
+                        print("[MODEL] This may take 5-10 minutes on Railway's free tier", file=sys.stderr, flush=True)
+                        model = BlipForConditionalGeneration.from_pretrained("Salesforce/blip-image-captioning-base")
+                        print("[MODEL] Model weights downloaded!", file=sys.stderr, flush=True)
+                        log_info("Model weights downloaded successfully")
+                        
+                        print("[MODEL] Moving model to CPU...", file=sys.stderr, flush=True)
+                        log_info("Moving model to CPU")
+                        # Ensure model is on CPU explicitly
+                        model = model.to("cpu")
+                        model.eval()  # Set to evaluation mode
+                        print("[MODEL] Model ready on CPU!", file=sys.stderr, flush=True)
+                        log_info("Model ready on CPU")
+                        
+                        print("=" * 80, file=sys.stderr, flush=True)
+                        print("MODEL DOWNLOAD COMPLETE - Ready to process images", file=sys.stderr, flush=True)
+                        print("=" * 80, file=sys.stderr, flush=True)
+                        
+                        return processor, model
+                    except Exception as load_error:
+                        print("=" * 80, file=sys.stderr, flush=True)
+                        print(f"MODEL DOWNLOAD FAILED: {type(load_error).__name__}: {str(load_error)}", file=sys.stderr, flush=True)
+                        print("=" * 80, file=sys.stderr, flush=True)
+                        log_error("Error during model loading", load_error)
+                        import traceback
+                        traceback.print_exc(file=sys.stderr)
+                        raise
                 
                 loop = asyncio.get_event_loop()
                 with ThreadPoolExecutor(max_workers=1) as executor:
                     _blip_processor, _blip_model = await loop.run_in_executor(executor, load_model)
                 
-                log_info("Model loaded and cached")
+                log_info("Model loaded and cached successfully")
             else:
                 log_debug("Using cached BLIP model")
             
@@ -583,11 +623,15 @@ async def root():
 @app.get("/api/health")
 async def health_check():
     """Health check endpoint"""
+    global _blip_processor, _blip_model
+    model_loaded = _blip_processor is not None and _blip_model is not None
     return {
         "status": "healthy",
         "supabase_configured": bool(supabase_url and supabase_key),
         "ai_service": AI_SERVICE,
-        "ai_key_configured": bool(AI_API_KEY)
+        "ai_key_configured": bool(AI_API_KEY),
+        "model_loaded": model_loaded,
+        "model_status": "loaded" if model_loaded else "not_loaded_yet"
     }
 
 
@@ -651,19 +695,25 @@ async def process_image(request: ImageProcessRequest):
 
 async def process_image_async(request: ImageProcessRequest):
     """Async task to process image with AI"""
+    import sys
     try:
-        log_info("Starting AI processing", image_id=request.image_id)
+        print(f"[PROCESSING] Starting AI processing for image_id={request.image_id}", file=sys.stderr, flush=True)
+        log_info("Starting AI processing", image_id=request.image_id, image_url_preview=request.image_url[:50] if request.image_url else None)
         
         # Get AI analysis
+        print(f"[PROCESSING] Calling process_image_with_ai for image_id={request.image_id}", file=sys.stderr, flush=True)
+        log_info("Calling process_image_with_ai", image_id=request.image_id)
         ai_result = await process_image_with_ai(request.image_url)
+        print(f"[PROCESSING] AI analysis complete for image_id={request.image_id}", file=sys.stderr, flush=True)
         
-        log_info("AI processing completed", 
+        log_info("AI processing completed successfully", 
                 image_id=request.image_id,
                 tags_count=len(ai_result.get('tags', [])),
                 description_length=len(ai_result.get('description', '')),
                 colors_count=len(ai_result.get('colors', [])))
         
         # Update metadata in database
+        log_info("Updating database with AI results", image_id=request.image_id)
         result = supabase.table("image_metadata").update({
             "description": ai_result["description"],
             "tags": ai_result["tags"],
@@ -671,19 +721,19 @@ async def process_image_async(request: ImageProcessRequest):
             "ai_processing_status": "completed"
         }).eq("image_id", request.image_id).execute()
         
-        log_debug("Updated metadata to completed", image_id=request.image_id)
+        log_info("Successfully updated metadata to completed", image_id=request.image_id)
         
     except Exception as e:
-        log_error("Async processing error", e, image_id=request.image_id)
+        log_error("Async processing error - marking as failed", e, image_id=request.image_id)
         import traceback
-        if not os.getenv("ENVIRONMENT") == "production":
-            traceback.print_exc()  # Only show traceback in dev
+        log_error("Full traceback", traceback.format_exc(), image_id=request.image_id)
         
         # Update status to failed
         try:
             supabase.table("image_metadata").update({
                 "ai_processing_status": "failed"
             }).eq("image_id", request.image_id).execute()
+            log_info("Updated status to failed", image_id=request.image_id)
         except Exception as update_error:
             log_error("Error updating status to failed", update_error, image_id=request.image_id)
 
