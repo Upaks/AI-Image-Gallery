@@ -5,7 +5,7 @@ import ImageGrid from '../components/ImageGrid'
 import SearchBar from '../components/SearchBar'
 import UserMenu from '../components/UserMenu'
 import ImageModal from '../components/ImageModal'
-import { Image as ImageIcon } from 'lucide-react'
+import { Image as ImageIcon, Download } from 'lucide-react'
 
 export default function Gallery({ user }) {
   const [images, setImages] = useState([])
@@ -15,6 +15,7 @@ export default function Gallery({ user }) {
   const [selectedImage, setSelectedImage] = useState(null)
   const [page, setPage] = useState(1)
   const [hasMore, setHasMore] = useState(true)
+  const [exporting, setExporting] = useState(false)
   const pollingIntervalRef = useRef(null)
   const imagesRef = useRef([])
   const limit = 20
@@ -257,6 +258,133 @@ export default function Gallery({ user }) {
     }
   }
 
+  const handleExportResults = async () => {
+    if (images.length === 0) {
+      alert('No images to export')
+      return
+    }
+
+    setExporting(true)
+
+    try {
+      // Fetch ALL matching images (not just current page)
+      let query = supabase
+        .from('images')
+        .select('*, image_metadata(*)')
+        .eq('user_id', user.id)
+        .order('uploaded_at', { ascending: false })
+
+      // Apply search filter if active
+      if (searchQuery) {
+        const searchLower = searchQuery.toLowerCase()
+        const { data: metadata } = await supabase
+          .from('image_metadata')
+          .select('image_id, tags, description')
+          .eq('user_id', user.id)
+
+        if (metadata && metadata.length > 0) {
+          const matchingMetadata = metadata.filter(meta => {
+            const tagMatch = meta.tags && meta.tags.some(tag => 
+              tag.toLowerCase().includes(searchLower)
+            )
+            const descMatch = meta.description && 
+              meta.description.toLowerCase().includes(searchLower)
+            return tagMatch || descMatch
+          })
+
+          if (matchingMetadata.length > 0) {
+            const imageIds = matchingMetadata.map(m => m.image_id)
+            query = query.in('id', imageIds)
+          } else {
+            // No matches - export empty result
+            query = query.eq('id', -1) // Force no results
+          }
+        }
+      }
+
+      // Apply color filter if active
+      if (colorFilter) {
+        const { data: metadata } = await supabase
+          .from('image_metadata')
+          .select('image_id')
+          .eq('user_id', user.id)
+          .contains('colors', [colorFilter])
+
+        if (metadata && metadata.length > 0) {
+          const imageIds = metadata.map(m => m.image_id)
+          query = query.in('id', imageIds)
+        } else {
+          // No matches - export empty result
+          query = query.eq('id', -1) // Force no results
+        }
+      }
+
+      // Fetch all matching images
+      const { data: allImages, error } = await query
+
+      if (error) throw error
+
+      const imagesToExport = allImages || []
+
+      // Prepare export data
+      const exportData = {
+        exportedAt: new Date().toISOString(),
+        totalImages: imagesToExport.length,
+        searchQuery: searchQuery || null,
+        colorFilter: colorFilter || null,
+        exportInfo: {
+          filtered: !!(searchQuery || colorFilter),
+          currentPageDisplayed: images.length,
+          totalMatchingResults: imagesToExport.length
+        },
+        images: imagesToExport.map(img => ({
+          id: img.id,
+          filename: img.filename,
+          original_path: img.original_path,
+          thumbnail_path: img.thumbnail_path,
+          uploaded_at: img.uploaded_at,
+          metadata: img.image_metadata?.[0] ? {
+            description: img.image_metadata[0].description,
+            tags: img.image_metadata[0].tags,
+            colors: img.image_metadata[0].colors,
+            ai_processing_status: img.image_metadata[0].ai_processing_status,
+            created_at: img.image_metadata[0].created_at,
+            updated_at: img.image_metadata[0].updated_at
+          } : null
+        }))
+      }
+
+      // Create JSON blob
+      const jsonString = JSON.stringify(exportData, null, 2)
+      const blob = new Blob([jsonString], { type: 'application/json' })
+      const url = window.URL.createObjectURL(blob)
+
+      // Create download link
+      const link = document.createElement('a')
+      link.href = url
+      
+      // Generate filename with timestamp
+      const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, -5)
+      const filterPrefix = searchQuery ? `search-${searchQuery.replace(/[^a-z0-9]/gi, '-')}-` : 
+                          colorFilter ? `color-${colorFilter.replace('#', '')}-` : 
+                          'all-'
+      const filename = `image-gallery-export-${filterPrefix}${timestamp}.json`
+      link.download = filename
+      
+      document.body.appendChild(link)
+      link.click()
+      
+      // Cleanup
+      document.body.removeChild(link)
+      window.URL.revokeObjectURL(url)
+    } catch (error) {
+      console.error('Error exporting results:', error)
+      alert(`Failed to export results: ${error.message || 'Please try again.'}`)
+    } finally {
+      setExporting(false)
+    }
+  }
+
 
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
@@ -276,9 +404,27 @@ export default function Gallery({ user }) {
       </header>
 
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        {/* Search Bar */}
-        <div className="mb-6">
-          <SearchBar onSearch={handleSearch} />
+        {/* Search Bar and Export */}
+        <div className="mb-6 flex items-center gap-4">
+          <div className="flex-1">
+            <SearchBar onSearch={handleSearch} />
+          </div>
+          {images.length > 0 && (
+            <button
+              onClick={handleExportResults}
+              disabled={exporting}
+              className="flex items-center space-x-2 px-4 py-2 bg-green-600 dark:bg-green-500 text-white rounded-lg hover:bg-green-700 dark:hover:bg-green-600 transition whitespace-nowrap disabled:opacity-50 disabled:cursor-not-allowed"
+              title="Export all matching search results as JSON"
+            >
+              <Download className="w-4 h-4" />
+              <span className="hidden sm:inline">
+                {exporting ? 'Exporting...' : 'Export JSON'}
+              </span>
+              <span className="sm:hidden">
+                {exporting ? '...' : 'Export'}
+              </span>
+            </button>
+          )}
         </div>
 
         {/* Upload Zone */}
