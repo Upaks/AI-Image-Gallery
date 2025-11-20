@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { supabase } from '../lib/supabase'
 import { X, Search, Download, Edit2, Plus, Save } from 'lucide-react'
-import axios from 'axios'
+import api from '../lib/api'
 import { logDebug, logError } from '../utils/logger'
 
 export default function ImageModal({ image, user, onClose, onFindSimilar, onMetadataUpdate }) {
@@ -79,7 +79,7 @@ export default function ImageModal({ image, user, onClose, onFindSimilar, onMeta
   const handleFindSimilar = async () => {
     setLoadingSimilar(true)
     try {
-      const response = await axios.get(`/api/similar/${image.id}`, {
+      const response = await api.get(`/api/similar/${image.id}`, {
         params: { user_id: user.id, limit: 5 }
       })
       setSimilarImages(response.data.data || [])

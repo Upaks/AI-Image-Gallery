@@ -246,7 +246,8 @@ export default function Gallery({ user }) {
 
   const handleFindSimilar = async (imageId) => {
     try {
-      const response = await fetch(`/api/similar/${imageId}?user_id=${user.id}`)
+      const apiUrl = import.meta.env.VITE_API_BASE_URL || ''
+      const response = await fetch(`${apiUrl}/api/similar/${imageId}?user_id=${user.id}`)
       const { data } = await response.json()
       
       if (data && data.length > 0) {

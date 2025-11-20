@@ -1,7 +1,7 @@
 import { useState, useRef } from 'react'
 import { supabase } from '../lib/supabase'
 import { Upload, X, Check } from 'lucide-react'
-import axios from 'axios'
+import api from '../lib/api'
 import { logError, logWarn, logInfo } from '../utils/logger'
 
 export default function ImageUpload({ user, onUploadComplete }) {
@@ -133,7 +133,7 @@ export default function ImageUpload({ user, onUploadComplete }) {
 
     // Trigger AI processing in background (non-blocking)
     // If this fails, image is still uploaded and visible
-    axios.post('/api/process-image', {
+    api.post('/api/process-image', {
       image_id: imageData.id,
       user_id: user.id,
       image_url: originalUrl

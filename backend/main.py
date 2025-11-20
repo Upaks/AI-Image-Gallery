@@ -27,10 +27,20 @@ async def validation_exception_handler(request: Request, exc: RequestValidationE
         content={"status": "error", "message": "Invalid request format", "errors": exc.errors()}
     )
 
-# CORS middleware
+# CORS middleware - allow both local development and production frontend
+frontend_url = os.getenv("FRONTEND_URL", "http://localhost:3000")
+cors_origins = [
+    "http://localhost:3000",
+    "http://127.0.0.1:3000",
+]
+
+# Add production frontend URL if provided
+if frontend_url and frontend_url not in cors_origins:
+    cors_origins.append(frontend_url)
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000", "http://127.0.0.1:3000"],
+    allow_origins=cors_origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -194,7 +204,7 @@ async def process_with_huggingface(image_url: str) -> dict:
                 def load_model():
                     processor = BlipProcessor.from_pretrained("Salesforce/blip-image-captioning-base")
                     model = BlipForConditionalGeneration.from_pretrained("Salesforce/blip-image-captioning-base")
-                    # Ensure model is on CPU explicitly
+                # Ensure model is on CPU explicitly
                     model = model.to("cpu")
                     model.eval()  # Set to evaluation mode
                     return processor, model
@@ -206,7 +216,7 @@ async def process_with_huggingface(image_url: str) -> dict:
                 log_info("Model loaded and cached")
             else:
                 log_debug("Using cached BLIP model")
-    
+            
     # Ensure model is loaded before processing
     await ensure_model_loaded()
     
