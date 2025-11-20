@@ -38,16 +38,16 @@ npm run test:coverage
 ## Test Coverage
 
 ### Image Utilities (`imageUtils.test.js`)
-- ✅ `isValidImageFormat` - Validates image file formats (JPEG, PNG)
-- ✅ `formatFileSize` - Formats file sizes for display
-- ✅ `generateUniqueFilename` - Generates unique filenames for uploads
-- ✅ `createThumbnail` - Creates thumbnail images from files
+- `isValidImageFormat` - Validates image file formats (JPEG, PNG)
+- `formatFileSize` - Formats file sizes for display
+- `generateUniqueFilename` - Generates unique filenames for uploads
+- `createThumbnail` - Creates thumbnail images from files
 
 ### Search Utilities (`searchUtils.test.js`)
-- ✅ `filterBySearchQuery` - Filters metadata by search query (tags/description)
-- ✅ `filterByColor` - Filters metadata by color
-- ✅ `cosineSimilarity` - Calculates cosine similarity between vectors
-- ✅ `extractUniqueTags` - Extracts unique tags from metadata
+- `filterBySearchQuery` - Filters metadata by search query (tags/description)
+- `filterByColor` - Filters metadata by color
+- `cosineSimilarity` - Calculates cosine similarity between vectors
+- `extractUniqueTags` - Extracts unique tags from metadata
 
 ## Test Framework
 

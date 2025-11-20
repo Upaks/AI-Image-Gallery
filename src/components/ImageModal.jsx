@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react'
 import { supabase } from '../lib/supabase'
 import { X, Search, Download, Edit2, Plus, Save } from 'lucide-react'
 import axios from 'axios'
+import { logDebug, logError } from '../utils/logger'
 
 export default function ImageModal({ image, user, onClose, onFindSimilar, onMetadataUpdate }) {
   const [metadata, setMetadata] = useState(image.image_metadata?.[0])
@@ -86,7 +87,7 @@ export default function ImageModal({ image, user, onClose, onFindSimilar, onMeta
         onFindSimilar(image.id)
       }
     } catch (error) {
-      console.error('Error finding similar images:', error)
+      logError('Error finding similar images', error, { imageId: image.id })
     } finally {
       setLoadingSimilar(false)
     }
@@ -116,7 +117,7 @@ export default function ImageModal({ image, user, onClose, onFindSimilar, onMeta
       document.body.removeChild(link)
       window.URL.revokeObjectURL(blobUrl)
     } catch (error) {
-      console.error('Error downloading image:', error)
+      logError('Error downloading image', error, { imageId: image.id, filename: image.filename })
       // Fallback: open in new tab if download fails
       window.open(image.original_path, '_blank')
     } finally {
@@ -129,7 +130,7 @@ export default function ImageModal({ image, user, onClose, onFindSimilar, onMeta
     const currentTags = metadata?.tags && Array.isArray(metadata.tags) ? [...metadata.tags] : []
     setEditedTags(currentTags)
     setEditingTags(true)
-    console.log('Entering edit mode, initial tags:', currentTags)
+    logDebug('Entering tag edit mode', { tagCount: currentTags.length })
   }
 
   const handleCancelEdit = () => {
@@ -141,7 +142,7 @@ export default function ImageModal({ image, user, onClose, onFindSimilar, onMeta
   const handleRemoveTag = (indexToRemove) => {
     setEditedTags(prevTags => {
       const updated = prevTags.filter((_, idx) => idx !== indexToRemove)
-      console.log('After removing tag, editedTags:', updated)
+      logDebug('Tag removed', { remainingTags: updated.length })
       return updated
     })
   }
@@ -151,7 +152,7 @@ export default function ImageModal({ image, user, onClose, onFindSimilar, onMeta
     if (trimmedTag && !editedTags.map(t => t.toLowerCase()).includes(trimmedTag)) {
       setEditedTags(prevTags => {
         const updated = [...prevTags, trimmedTag]
-        console.log('After adding tag, editedTags:', updated)
+        logDebug('Tag added', { tag: trimmedTag, totalTags: updated.length })
         return updated
       })
       setNewTag('')
@@ -171,17 +172,11 @@ export default function ImageModal({ image, user, onClose, onFindSimilar, onMeta
     
     setSavingTags(true)
     
-    // Log the tags we're about to save - this is critical for debugging
-    console.log('=== SAVING TAGS ===')
-    console.log('editedTags state:', editedTags)
-    console.log('editedTags length:', editedTags.length)
-    console.log('editedTags is array?', Array.isArray(editedTags))
-    
     try {
       // Ensure editedTags is an array
       const tagsToSave = Array.isArray(editedTags) ? [...editedTags] : []
       
-      console.log('tagsToSave (final):', tagsToSave)
+      logDebug('Saving tags', { imageId: image.id, tagCount: tagsToSave.length })
       
       // Update metadata in database
       const { data, error } = await supabase
@@ -192,16 +187,13 @@ export default function ImageModal({ image, user, onClose, onFindSimilar, onMeta
         .single()
 
       if (error) {
-        console.error('Supabase error:', error)
+        logError('Failed to save tags to database', error, { imageId: image.id })
         throw error
       }
 
       if (!data) {
         throw new Error('No data returned from update')
       }
-
-      console.log('Data returned from Supabase:', data)
-      console.log('Tags in response:', data.tags)
 
       // Update local state with fresh data from database
       setMetadata(data)
@@ -214,7 +206,7 @@ export default function ImageModal({ image, user, onClose, onFindSimilar, onMeta
       setEditingTags(false)
       setNewTag('')
     } catch (error) {
-      console.error('Error saving tags:', error)
+      logError('Error saving tags', error, { imageId: image.id })
       alert(`Failed to save tags: ${error.message || 'Please try again.'}`)
     } finally {
       setSavingTags(false)
@@ -357,7 +349,7 @@ export default function ImageModal({ image, user, onClose, onFindSimilar, onMeta
                             </button>
                           </div>
                           <p className="text-xs text-gray-500 dark:text-gray-400">
-                            💡 Tip: Type a tag and press <kbd className="px-1 py-0.5 bg-gray-100 dark:bg-gray-700 rounded text-xs">Enter</kbd> or click <kbd className="px-1 py-0.5 bg-gray-100 dark:bg-gray-700 rounded text-xs">Add</kbd> to add it to the list above, then click <kbd className="px-1 py-0.5 bg-gray-100 dark:bg-gray-700 rounded text-xs">Save</kbd> when done
+                            Tip: Type a tag and press <kbd className="px-1 py-0.5 bg-gray-100 dark:bg-gray-700 rounded text-xs">Enter</kbd> or click <kbd className="px-1 py-0.5 bg-gray-100 dark:bg-gray-700 rounded text-xs">Add</kbd> to add it to the list above, then click <kbd className="px-1 py-0.5 bg-gray-100 dark:bg-gray-700 rounded text-xs">Save</kbd> when done
                           </p>
                         </div>
                         

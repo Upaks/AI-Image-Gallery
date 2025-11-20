@@ -6,6 +6,7 @@ import SearchBar from '../components/SearchBar'
 import UserMenu from '../components/UserMenu'
 import ImageModal from '../components/ImageModal'
 import { Image as ImageIcon, Download } from 'lucide-react'
+import { logError } from '../utils/logger'
 
 export default function Gallery({ user }) {
   const [images, setImages] = useState([])
@@ -91,7 +92,7 @@ export default function Gallery({ user }) {
           .in('image_id', pendingImageIds)
 
         if (error) {
-          console.error('Error fetching metadata updates:', error)
+          logError('Error fetching metadata updates', error)
           return
         }
 
@@ -116,7 +117,7 @@ export default function Gallery({ user }) {
           })
         }
       } catch (error) {
-        console.error('Error polling for updates:', error)
+        logError('Error polling for metadata updates', error)
       }
     }, 2000) // Poll every 2 seconds
 
@@ -215,7 +216,7 @@ export default function Gallery({ user }) {
 
       setHasMore((data || []).length === limit)
     } catch (error) {
-      console.error('Error loading images:', error)
+      logError('Error loading images', error, { userId: user.id })
     } finally {
       setLoading(false)
     }
@@ -254,15 +255,15 @@ export default function Gallery({ user }) {
         setHasMore(false)
       }
     } catch (error) {
-      console.error('Error finding similar images:', error)
+      logError('Error finding similar images', error, { imageId, userId: user.id })
     }
   }
 
   const handleExportResults = async () => {
     if (images.length === 0) {
       alert('No images to export')
-      return
-    }
+          return
+        }
 
     setExporting(true)
 
@@ -378,7 +379,7 @@ export default function Gallery({ user }) {
       document.body.removeChild(link)
       window.URL.revokeObjectURL(url)
     } catch (error) {
-      console.error('Error exporting results:', error)
+      logError('Error exporting results', error, { userId: user.id })
       alert(`Failed to export results: ${error.message || 'Please try again.'}`)
     } finally {
       setExporting(false)
@@ -407,7 +408,7 @@ export default function Gallery({ user }) {
         {/* Search Bar and Export */}
         <div className="mb-6 flex items-center gap-4">
           <div className="flex-1">
-            <SearchBar onSearch={handleSearch} />
+          <SearchBar onSearch={handleSearch} />
           </div>
           {images.length > 0 && (
             <button

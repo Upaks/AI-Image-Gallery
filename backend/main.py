@@ -12,6 +12,7 @@ import httpx
 from PIL import Image
 import io
 import base64
+from logger import log_info, log_warn, log_error, log_debug, safe_log_api_key
 
 load_dotenv()
 
@@ -20,11 +21,7 @@ app = FastAPI(title="AI Image Gallery API")
 # Exception handler for validation errors
 @app.exception_handler(RequestValidationError)
 async def validation_exception_handler(request: Request, exc: RequestValidationError):
-    print(f"=== VALIDATION ERROR ===")
-    print(f"Request path: {request.url}")
-    print(f"Request body: {await request.body()}")
-    print(f"Validation errors: {exc.errors()}")
-    print("=== END VALIDATION ERROR ===")
+    log_warn("Validation error", path=str(request.url), errors=exc.errors())
     return JSONResponse(
         status_code=200,  # Return 200 even for validation errors
         content={"status": "error", "message": "Invalid request format", "errors": exc.errors()}
@@ -44,25 +41,22 @@ supabase_url = os.getenv("SUPABASE_URL")
 supabase_key = os.getenv("SUPABASE_SERVICE_ROLE_KEY")
 
 if not supabase_url or not supabase_key:
-    print("ERROR: Missing SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY in environment variables")
-    print("Please check your backend/.env file")
+    log_error("Missing Supabase configuration", ValueError("Missing SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY"))
     raise ValueError("Missing SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY in environment variables")
 
 try:
     supabase: Client = create_client(supabase_url, supabase_key)
-    print(f"✓ Supabase client initialized with URL: {supabase_url[:30]}...")
+    log_info("Supabase client initialized")
 except Exception as e:
-    print(f"ERROR: Failed to initialize Supabase client: {e}")
+    log_error("Failed to initialize Supabase client", e)
     raise
 
 # AI Service Configuration
-AI_SERVICE = os.getenv("AI_SERVICE", "replicate")  # replicate (FREE TIER!), huggingface, openai, or google
-AI_API_KEY = os.getenv("AI_API_KEY")  # For Replicate: get free token from replicate.com
+AI_SERVICE = os.getenv("AI_SERVICE", "huggingface")  # huggingface, openai, or google
+AI_API_KEY = os.getenv("AI_API_KEY")  # For external services (OpenAI, Google)
 
-print(f"AI Service: {AI_SERVICE}")
-print(f"AI API Key configured: {'Yes' if AI_API_KEY else 'No'}")
-if AI_API_KEY:
-    print(f"AI API Key (first 10 chars): {AI_API_KEY[:10]}...")
+# Log service configuration (NEVER expose API keys)
+log_info("AI Service configuration", service=AI_SERVICE, api_key_status=safe_log_api_key(AI_API_KEY))
 
 # Cache for AI results (simple in-memory cache)
 ai_cache = {}
@@ -86,14 +80,7 @@ async def process_image_with_ai(image_url: str) -> dict:
     
     try:
         # Check AI service and API key
-        if AI_SERVICE == "replicate":
-            # Replicate has FREE TIER - perfect for job applications! No server needed!
-            if not AI_API_KEY:
-                print("⚠️ No Replicate API key - using fallback")
-                result = await process_with_mock(image_url)
-            else:
-                result = await process_with_replicate(image_url)
-        elif AI_SERVICE == "huggingface":
+        if AI_SERVICE == "huggingface":
             # Hugging Face - BLIP models not available via API (would need local server = costs money)
             result = await process_with_huggingface(image_url)
         elif AI_SERVICE == "openai":
@@ -106,16 +93,17 @@ async def process_image_with_ai(image_url: str) -> dict:
             result = await process_with_google(image_url)
         else:
             # Fallback to mock data for development
-            print(f"Unknown AI_SERVICE: {AI_SERVICE}, using mock")
+            log_warn("Unknown AI_SERVICE, using mock", service=AI_SERVICE)
             result = await process_with_mock(image_url)
         
         # Cache the result
         ai_cache[cache_key] = result
         return result
     except Exception as e:
-        print(f"AI processing error: {e}")
+        log_error("AI processing error", e, image_url_preview=image_url[:50] if image_url else None)
         import traceback
-        traceback.print_exc()
+        if not os.getenv("ENVIRONMENT") == "production":
+            traceback.print_exc()  # Only show traceback in dev
         # Return minimal data on error - don't fail completely
         return {
             "tags": ["image", "photo", "picture"],
@@ -124,235 +112,10 @@ async def process_image_with_ai(image_url: str) -> dict:
         }
 
 
-async def process_with_replicate(image_url: str) -> dict:
-    """Process image using Replicate API with rate limit handling"""
-    import replicate
-    
-    if not AI_API_KEY:
-        raise ValueError("AI_API_KEY not set in environment variables")
-    
-    print(f"Using Replicate API with key: {AI_API_KEY[:10]}...")
-    
-    # Set the API token for replicate module
-    os.environ["REPLICATE_API_TOKEN"] = AI_API_KEY
-    
-    print(f"Calling Replicate API with image: {image_url[:50]}...")
-    
-    # Try models in order - using replicate.run() directly (module-level function)
-    # Using models that are confirmed to exist (from your screenshots and logs)
-    # Models that return 404 are excluded - models that return 429 DO exist and will work after retry
-    models_to_try = [
-        # Model 1: lucataco/moondream2 - Fast and efficient (4M runs) - CONFIRMED EXISTS (returns 429, not 404)
-        {
-            "name": "lucataco/moondream2",
-            "input": {
-                "prompt": "Describe this image. List objects, colors, and scene details.",
-                "image": image_url
-            },
-            "description": "Moondream2 - Fast vision model (confirmed working)"
-        },
-        # Model 2: andreasjansson/blip-2 - Question answering (30M runs) - CONFIRMED EXISTS (returns 429, not 404)
-        {
-            "name": "andreasjansson/blip-2",
-            "input": {
-                "image": image_url,
-                "question": "What is in this image? Describe it and list relevant tags."
-            },
-            "description": "BLIP-2 - Question answering (confirmed working)"
-        }
-    ]
-    
-    last_error = None
-    for model_config in models_to_try:
-        try:
-            model_name = model_config["name"]
-            model_input = model_config["input"]
-            print(f"Trying model: {model_name} ({model_config.get('description', 'N/A')})")
-            print(f"Model input keys: {list(model_input.keys())}")
-            
-            # Use replicate.run() directly - more reliable than client instance
-            output = replicate.run(
-                model_name,
-                input=model_input
-            )
-            
-            # Wait for the prediction to complete if it's async
-            if hasattr(output, 'status'):
-                # It's a prediction object, wait for completion
-                while output.status not in ["succeeded", "failed", "canceled"]:
-                    await asyncio.sleep(1)
-                    output.reload()
-                
-                if output.status == "succeeded":
-                    output = output.output
-                else:
-                    raise Exception(f"Prediction {output.status}: {output.error}")
-            
-            print(f"Replicate API response type: {type(output)}")
-            print(f"Replicate API response preview: {str(output)[:200]}...")
-            
-            # Handle different output formats
-            if isinstance(output, str):
-                caption = output
-            elif isinstance(output, list):
-                caption = " ".join(str(item) for item in output)
-            elif isinstance(output, dict):
-                caption = output.get("caption", output.get("description", output.get("prompt", output.get("output", str(output)))))
-            else:
-                caption = str(output)
-            
-            print(f"Extracted caption: {caption[:100]}...")
-            
-            # Extract tags from caption
-            tags = extract_tags_from_text(caption)
-            print(f"Extracted tags: {tags}")
-            
-            # Get colors using image processing
-            colors = await extract_colors(image_url)
-            print(f"Extracted colors: {colors}")
-            
-            return {
-                "tags": tags[:10] if len(tags) >= 5 else tags + ["image", "photo", "picture", "visual", "graphic"][:5-len(tags)],
-                "description": caption[:200] if len(caption) > 200 else caption,
-                "colors": colors[:3]
-            }
-            
-        except replicate.exceptions.ReplicateError as e:
-            error_detail = str(e)
-            print(f"Replicate error with {model_config['name']}: {error_detail}")
-            
-            # Handle rate limiting (429) - CRITICAL: Free tier allows only 1 request at a time
-            # Free tier: 6 requests/minute with burst of 1 = wait at least 60+ seconds
-            if "429" in error_detail or "throttled" in error_detail.lower() or "rate limit" in error_detail.lower():
-                # Extract wait time from error message
-                wait_time = 70  # Default: wait 70 seconds (more than 1 minute)
-                try:
-                    import re
-                    # Try to extract time from message like "resets in ~10s" or "resets in 10s"
-                    match = re.search(r'resets in.*?(?:~)?(\d+)s', error_detail, re.IGNORECASE)
-                    if match:
-                        extracted_time = int(match.group(1))
-                        wait_time = extracted_time + 15  # Add 15 second buffer
-                        print(f"   Extracted wait time from error: {extracted_time}s, waiting {wait_time}s total")
-                    else:
-                        print(f"   Could not extract wait time, using default {wait_time}s")
-                except Exception as parse_error:
-                    print(f"   Error parsing wait time: {parse_error}, using default {wait_time}s")
-                
-                print(f"⚠️ Rate limited (429). Free tier: 6 requests/minute. Waiting {wait_time} seconds...")
-                print(f"   If this keeps happening, add a payment method: https://replicate.com/account/billing")
-                await asyncio.sleep(wait_time)
-                
-                # NOW RETRY this model after waiting (don't skip it!)
-                print(f"✅ Rate limit wait complete. Retrying model: {model_config['name']}")
-                try:
-                    retry_output = replicate.run(
-                        model_config["name"],
-                        input=model_config["input"]
-                    )
-                    
-                    # Wait for completion if async
-                    if hasattr(retry_output, 'status'):
-                        while retry_output.status not in ["succeeded", "failed", "canceled"]:
-                            await asyncio.sleep(1)
-                            retry_output.reload()
-                        if retry_output.status == "succeeded":
-                            retry_output = retry_output.output
-                        else:
-                            raise Exception(f"Prediction {retry_output.status}: {retry_output.error}")
-                    
-                    # Process successful output
-                    if isinstance(retry_output, str):
-                        caption = retry_output
-                    elif isinstance(retry_output, list):
-                        caption = " ".join(str(item) for item in retry_output)
-                    elif isinstance(retry_output, dict):
-                        caption = retry_output.get("caption", retry_output.get("description", retry_output.get("prompt", retry_output.get("output", str(retry_output)))))
-                    else:
-                        caption = str(retry_output)
-                    
-                    print(f"✅ SUCCESS! Model {model_config['name']} returned result after rate limit wait")
-                    print(f"Extracted caption: {caption[:100]}...")
-                    
-                    tags = extract_tags_from_text(caption)
-                    colors = await extract_colors(image_url)
-                    
-                    return {
-                        "tags": tags[:10] if len(tags) >= 5 else tags + ["image", "photo", "picture", "visual", "graphic"][:5-len(tags)],
-                        "description": caption[:200] if len(caption) > 200 else caption,
-                        "colors": colors[:3]
-                    }
-                except Exception as retry_error:
-                    # Retry also failed, log and continue to next model
-                    last_error = retry_error
-                    error_str = str(retry_error)
-                    print(f"❌ Retry after rate limit wait failed: {retry_error}")
-                    # If it's another rate limit, wait even longer
-                    if "429" in error_str or "throttled" in error_str.lower():
-                        print(f"   Still rate limited - this account may need a payment method")
-                    print(f"   Moving to next model...")
-                    continue
-            
-            # 404 or other errors - try next model
-            elif "404" in error_detail or "not found" in error_detail.lower():
-                last_error = e
-                print(f"Model {model_config['name']} not found, trying next...")
-                continue
-            else:
-                last_error = e
-                continue
-                
-        except Exception as e:
-            last_error = e
-            print(f"Error with {model_config['name']}: {e}")
-            continue
-    
-    # All models failed - provide helpful error message
-    error_msg = "❌ All Replicate models failed. "
-    if last_error:
-        error_str = str(last_error)
-        if "404" in error_str or "not found" in error_str.lower():
-            error_msg += "\n\n🔍 Models not found (404). Possible causes:\n"
-            error_msg += "1. Model names may be incorrect\n"
-            error_msg += "2. Your Replicate account may not have access\n"
-            error_msg += "3. Models may have been removed/changed\n\n"
-            error_msg += "✅ SOLUTION:\n"
-            error_msg += "1. Visit: https://replicate.com/explore\n"
-            error_msg += "2. Search for 'image captioning', 'vision', 'blip', or 'llava'\n"
-            error_msg += "3. Find a working model name (format: 'owner/model-name')\n"
-            error_msg += "4. Update backend/main.py line 138 with correct model name\n"
-            error_msg += "5. Or check: https://replicate.com/collections/try-for-free\n"
-            error_msg += "   (Note: Try for Free focuses on generation, not captioning)\n"
-        elif "429" in error_str or "rate limit" in error_str.lower():
-            error_msg += "\n\n⚠️ Rate limited (429).\n"
-            error_msg += "Free tier: 6 requests/minute with burst of 1\n"
-            error_msg += "Wait 60 seconds and try again.\n"
-            error_msg += "Add payment method to increase limits: https://replicate.com/account/billing"
-        elif "401" in error_str or "403" in error_str:
-            error_msg += "\n\n❌ Authentication failed.\n"
-            error_msg += "Check your Replicate API key in backend/.env\n"
-            error_msg += "Get key from: https://replicate.com/account/api-tokens"
-        else:
-            error_msg += f"\n\nLast error: {last_error}"
-    else:
-        error_msg += "Unknown error occurred."
-    
-    print("\n" + "="*60)
-    print("REPLICATE API FAILED")
-    print("="*60)
-    print(error_msg)
-    print("="*60 + "\n")
-    raise Exception(error_msg)
-
-
-# Global model cache to avoid reloading
-_blip_processor = None
-_blip_model = None
-
 # Global model cache to avoid reloading (fixes device mismatch when processing multiple images)
 _blip_processor = None
 _blip_model = None
-_model_lock = asyncio.Lock()
+_model_lock = asyncio.Lock()  # Protects model loading only (prevents meta tensor errors)
 
 async def process_with_huggingface(image_url: str) -> dict:
     """Process image using Hugging Face Transformers (LOCAL - FREE, runs on your machine!)"""
@@ -365,47 +128,100 @@ async def process_with_huggingface(image_url: str) -> dict:
     
     global _blip_processor, _blip_model
     
-    print(f"🔵 Using Hugging Face Transformers (Local - FREE, runs on your machine)")
+    log_info("Using Hugging Face Transformers (Local)")
     
-    # Download image
+    # Download image with retry logic for transient failures
     async with httpx.AsyncClient(timeout=60.0) as client:
-        try:
-            print(f"📥 Downloading image...")
-            image_response = await client.get(image_url)
-            image_response.raise_for_status()
-            image_bytes = image_response.content
-            image = Image.open(io.BytesIO(image_bytes)).convert("RGB")
-            print(f"✓ Image downloaded: {len(image_bytes)} bytes")
-        except Exception as e:
-            print(f"❌ Failed to download image: {e}")
-            raise Exception(f"Failed to download image: {e}")
+        max_retries = 3
+        retry_delay = 1  # Start with 1 second
+        
+        for attempt in range(max_retries):
+            try:
+                log_debug("Downloading image", 
+                         image_url_preview=image_url[:50] if image_url else None,
+                         attempt=attempt + 1,
+                         max_retries=max_retries)
+                image_response = await client.get(image_url)
+                image_response.raise_for_status()
+                image_bytes = image_response.content
+                image = Image.open(io.BytesIO(image_bytes)).convert("RGB")
+                log_debug("Image downloaded successfully", size_bytes=len(image_bytes))
+                break  # Success, exit retry loop
+            except httpx.HTTPStatusError as e:
+                # Retry on 5xx errors (server errors) but not 4xx (client errors)
+                if e.response.status_code >= 500 and attempt < max_retries - 1:
+                    log_warn("Transient server error downloading image, retrying", 
+                            status_code=e.response.status_code,
+                            attempt=attempt + 1,
+                            retry_delay=retry_delay,
+                            image_url_preview=image_url[:50] if image_url else None)
+                    await asyncio.sleep(retry_delay)
+                    retry_delay *= 2  # Exponential backoff
+                    continue
+                else:
+                    log_error("Failed to download image after retries", e, 
+                             image_url_preview=image_url[:50] if image_url else None,
+                             status_code=e.response.status_code)
+                    raise Exception(f"Failed to download image: HTTP {e.response.status_code}")
+            except Exception as e:
+                # Non-HTTP errors (network issues, etc.) - retry once
+                if attempt < max_retries - 1:
+                    log_warn("Network error downloading image, retrying", 
+                            error=str(e)[:100],
+                            attempt=attempt + 1,
+                            retry_delay=retry_delay,
+                            image_url_preview=image_url[:50] if image_url else None)
+                    await asyncio.sleep(retry_delay)
+                    retry_delay *= 2
+                    continue
+                else:
+                    log_error("Failed to download image after retries", e, 
+                             image_url_preview=image_url[:50] if image_url else None)
+                    raise Exception(f"Failed to download image: {e}")
     
-    # Load BLIP model locally (FREE - runs on your computer, no server costs!)
-    # Cache model to avoid reloading for each request
+    # Load BLIP model locally with thread-safe initialization
+    async def ensure_model_loaded():
+        """Thread-safe model loading"""
+        global _blip_processor, _blip_model
+        
+        # Use lock to prevent concurrent model loading
+        async with _model_lock:
+            # Double-check after acquiring lock (pattern for thread-safe singleton)
+            if _blip_processor is None or _blip_model is None:
+                log_info("Loading BLIP model (first time: 30-60s download, then cached)")
+                
+                # Load model in thread pool to avoid blocking
+                def load_model():
+                    processor = BlipProcessor.from_pretrained("Salesforce/blip-image-captioning-base")
+                    model = BlipForConditionalGeneration.from_pretrained("Salesforce/blip-image-captioning-base")
+                    # Ensure model is on CPU explicitly
+                    model = model.to("cpu")
+                    model.eval()  # Set to evaluation mode
+                    return processor, model
+                
+                loop = asyncio.get_event_loop()
+                with ThreadPoolExecutor(max_workers=1) as executor:
+                    _blip_processor, _blip_model = await loop.run_in_executor(executor, load_model)
+                
+                log_info("Model loaded and cached")
+            else:
+                log_debug("Using cached BLIP model")
+    
+    # Ensure model is loaded before processing
+    await ensure_model_loaded()
+    
+    # Process image with cached model (PyTorch models in eval mode are thread-safe for inference)
     def run_captioning():
         global _blip_processor, _blip_model
         try:
-            # Load model once, cache it
-            if _blip_processor is None or _blip_model is None:
-                print(f"📦 Loading BLIP model (first time: 30-60s download, then cached)...")
-                _blip_processor = BlipProcessor.from_pretrained("Salesforce/blip-image-captioning-base")
-                _blip_model = BlipForConditionalGeneration.from_pretrained("Salesforce/blip-image-captioning-base")
-                # Ensure model is on CPU explicitly
-                _blip_model = _blip_model.to("cpu")
-                _blip_model.eval()  # Set to evaluation mode
-                print(f"✓ Model loaded and cached")
-            else:
-                print(f"📦 Using cached BLIP model")
+            log_debug("Processing image")
             
-            print(f"🖼️ Processing image...")
             # Process image - ensure everything is on CPU
             inputs = _blip_processor(images=image, return_tensors="pt")
             # Move ALL inputs to CPU explicitly (fixes device mismatch)
             inputs = {k: v.to("cpu") if isinstance(v, torch.Tensor) else v for k, v in inputs.items()}
             
-            # Ensure model is on CPU (double-check)
-            _blip_model = _blip_model.to("cpu")
-            
+            # Model is already on CPU from initial loading (thread-safe inference, no lock needed)
             # Generate caption with no gradients (faster, uses less memory)
             with torch.no_grad():
                 outputs = _blip_model.generate(**inputs, max_length=50)
@@ -414,9 +230,10 @@ async def process_with_huggingface(image_url: str) -> dict:
             
             return caption
         except Exception as e:
-            print(f"❌ Model error: {e}")
+            log_error("Model error", e)
             import traceback
-            traceback.print_exc()
+            if not os.getenv("ENVIRONMENT") == "production":
+                traceback.print_exc()  # Only show traceback in dev
             raise
     
     # Run in thread pool
@@ -430,7 +247,7 @@ async def process_with_huggingface(image_url: str) -> dict:
         if not caption or len(caption) < 5:
             raise Exception("Empty caption returned")
         
-        print(f"✅ SUCCESS! Caption: {caption[:100]}...")
+        log_info("Caption generated successfully", caption_preview=caption[:100])
         
         # Extract tags and colors
         tags = extract_tags_from_text(caption)
@@ -443,9 +260,10 @@ async def process_with_huggingface(image_url: str) -> dict:
         }
     except Exception as e:
         error_str = str(e)
-        print(f"❌ Failed: {error_str}")
+        log_error("Hugging Face processing failed", e)
         import traceback
-        traceback.print_exc()
+        if not os.getenv("ENVIRONMENT") == "production":
+            traceback.print_exc()  # Only show traceback in dev
         
         # Fallback - extract colors anyway
         colors = await extract_colors(image_url)
@@ -458,20 +276,20 @@ async def process_with_huggingface(image_url: str) -> dict:
     # Download image
     async with httpx.AsyncClient(timeout=60.0) as client:
         try:
-            print(f"📥 Downloading image...")
+            log_debug("Downloading image for Hugging Face API", image_url_preview=image_url[:50] if image_url else None)
             image_response = await client.get(image_url)
             image_response.raise_for_status()
             image_bytes = image_response.content
-            print(f"✓ Image downloaded: {len(image_bytes)} bytes")
+            log_debug("Image downloaded", size_bytes=len(image_bytes))
         except Exception as e:
-            print(f"❌ Failed to download image: {e}")
+            log_error("Failed to download image for Hugging Face API", e, image_url_preview=image_url[:50] if image_url else None)
             raise Exception(f"Failed to download image: {e}")
         
         # Try each model with direct HTTP - Try multiple endpoint formats
         last_error = None
         for model_name in models_to_try:
             try:
-                print(f"\n🔍 Trying model: {model_name}")
+                log_debug("Trying Hugging Face model", model=model_name)
                 
                 # Try multiple endpoint formats
                 # Note: deployed-models collection might not have image captioning models
@@ -493,23 +311,23 @@ async def process_with_huggingface(image_url: str) -> dict:
                 # Try each endpoint format
                 for api_url in endpoints_to_try:
                     try:
-                        print(f"📤 POST to: {api_url}")
+                        log_debug("POST to Hugging Face API", endpoint=api_url)
                         response = await client.post(
                             api_url,
                             headers=headers,
                             content=image_bytes,
                             timeout=60.0
                         )
-                        print(f"📥 Response: {response.status_code}")
+                        log_debug("Hugging Face API response", status_code=response.status_code, endpoint=api_url)
                         
                         # If 410, try next endpoint
                         if response.status_code == 410:
-                            print(f"⚠️ Endpoint deprecated, trying next...")
+                            log_debug("Endpoint deprecated, trying next", endpoint=api_url)
                             continue
                         
                         # If 503, wait and retry same endpoint
                         if response.status_code == 503:
-                            print(f"⏳ Model loading, waiting 20s...")
+                            log_info("Model loading, waiting 20s", endpoint=api_url)
                             await asyncio.sleep(20)
                             response = await client.post(
                                 api_url,
@@ -517,7 +335,7 @@ async def process_with_huggingface(image_url: str) -> dict:
                                 content=image_bytes,
                                 timeout=60.0
                             )
-                            print(f"📥 Retry: {response.status_code}")
+                            log_debug("Retry response", status_code=response.status_code, endpoint=api_url)
                         
                         # If 200, we found working endpoint!
                         if response.status_code == 200:
@@ -529,26 +347,26 @@ async def process_with_huggingface(image_url: str) -> dict:
                             continue
                             
                     except Exception as e:
-                        print(f"⚠️ Error with {api_url}: {str(e)[:100]}")
+                        log_warn("Error with Hugging Face endpoint", endpoint=api_url, error=str(e)[:100])
                         continue
                 
                 # If no working endpoint found
                 if not response or response.status_code != 200:
                     if response:
                         error_text = response.text[:200] if hasattr(response, 'text') else ""
-                        print(f"❌ All endpoints failed. Last: HTTP {response.status_code}: {error_text}")
+                        log_warn("All Hugging Face endpoints failed", status_code=response.status_code, error_preview=error_text)
                         last_error = f"HTTP {response.status_code}"
                     else:
-                        print(f"❌ All endpoints failed")
+                        log_warn("All Hugging Face endpoints failed", error="No response")
                         last_error = "All endpoints failed"
                     continue
                 
                 # Parse JSON (we already checked status is 200)
                 try:
                     result = response.json()
-                    print(f"✓ Got JSON from {working_url}")
+                    log_debug("Got JSON response from Hugging Face", endpoint=working_url)
                 except:
-                    print(f"⚠️ Not JSON: {response.text[:200]}")
+                    log_warn("Invalid JSON response from Hugging Face", response_preview=response.text[:200] if hasattr(response, 'text') else None)
                     last_error = "Invalid JSON"
                     continue
                 
@@ -567,11 +385,11 @@ async def process_with_huggingface(image_url: str) -> dict:
                 caption = str(caption).strip() if caption else ""
                 
                 if not caption or len(caption) < 5:
-                    print(f"⚠️ Empty caption")
+                    log_warn("Empty caption from Hugging Face")
                     last_error = "Empty caption"
                     continue
                 
-                print(f"✅ SUCCESS! Caption: {caption[:100]}...")
+                log_info("Caption generated successfully from Hugging Face API", caption_preview=caption[:100])
                 
                 # Extract tags and colors
                 tags = extract_tags_from_text(caption)
@@ -584,19 +402,16 @@ async def process_with_huggingface(image_url: str) -> dict:
                 }
                 
             except httpx.HTTPStatusError as e:
-                print(f"❌ HTTP error: {e.response.status_code}")
+                log_error("HTTP error from Hugging Face API", e, status_code=e.response.status_code)
                 last_error = f"HTTP {e.response.status_code}"
                 continue
             except Exception as e:
-                print(f"❌ Error: {str(e)[:200]}")
+                log_error("Error with Hugging Face model", e, model=model_name)
                 last_error = str(e)[:200]
                 continue
         
         # All failed - return fallback
-        print(f"\n{'='*60}")
-        print("⚠️ ALL MODELS FAILED - Using fallback")
-        print(f"Last error: {last_error}")
-        print("="*60 + "\n")
+        log_warn("All Hugging Face models failed, using fallback", last_error=last_error)
         
         colors = await extract_colors(image_url)
         
@@ -730,7 +545,7 @@ async def extract_colors(image_url: str) -> List[str]:
             
             return top_colors[:3]
     except Exception as e:
-        print(f"Color extraction error: {e}")
+        log_error("Color extraction error", e)
     
     return ["#000000", "#FFFFFF", "#808080"]
 
@@ -770,10 +585,7 @@ async def health_check():
 async def process_image(request: ImageProcessRequest):
     """Process image with AI in background - always returns 200 since image is already uploaded"""
     try:
-        print(f"=== PROCESS IMAGE REQUEST ===")
-        print(f"Image ID: {request.image_id}")
-        print(f"User ID: {request.user_id}")
-        print(f"Image URL: {request.image_url[:50]}...")
+        log_info("Processing image request", image_id=request.image_id, user_id=request.user_id)
         
         # Check if metadata record exists, if not create it
         try:
@@ -784,7 +596,7 @@ async def process_image(request: ImageProcessRequest):
                 result = supabase.table("image_metadata").update({
                     "ai_processing_status": "processing"
                 }).eq("image_id", request.image_id).execute()
-                print(f"Updated metadata status to processing: {result}")
+                log_debug("Updated metadata status to processing", image_id=request.image_id)
             else:
                 # Create new record
                 result = supabase.table("image_metadata").insert({
@@ -792,33 +604,34 @@ async def process_image(request: ImageProcessRequest):
                     "user_id": request.user_id,
                     "ai_processing_status": "processing"
                 }).execute()
-                print(f"Created metadata record with processing status: {result}")
+                log_debug("Created metadata record with processing status", image_id=request.image_id)
         except Exception as db_error:
-            print(f"Database error (non-critical, will retry): {db_error}")
+            log_error("Database error (non-critical, will retry)", db_error, image_id=request.image_id)
             import traceback
-            traceback.print_exc()
+            if not os.getenv("ENVIRONMENT") == "production":
+                traceback.print_exc()  # Only show traceback in dev
             # Continue anyway - image is uploaded, we can retry later
         
         # Process image asynchronously (don't wait for it)
         try:
             asyncio.create_task(process_image_async(request))
-            print(f"Started async AI processing task for image_id: {request.image_id}")
+            log_info("Started async AI processing task", image_id=request.image_id)
         except Exception as task_error:
-            print(f"Error creating async task: {task_error}")
+            log_error("Error creating async task", task_error, image_id=request.image_id)
             import traceback
-            traceback.print_exc()
+            if not os.getenv("ENVIRONMENT") == "production":
+                traceback.print_exc()  # Only show traceback in dev
         
         # Always return 200 - image is uploaded successfully
         return {"status": "processing", "image_id": request.image_id}
         
     except Exception as e:
-        print(f"=== CRITICAL ERROR in process_image endpoint ===")
-        print(f"Error type: {type(e).__name__}")
-        print(f"Error message: {str(e)}")
+        log_error("Critical error in process_image endpoint", e, 
+                 error_type=type(e).__name__, 
+                 image_id=getattr(request, 'image_id', None))
         import traceback
-        print("Full traceback:")
-        traceback.print_exc()
-        print("=== END ERROR ===")
+        if not os.getenv("ENVIRONMENT") == "production":
+            traceback.print_exc()  # Only show traceback in dev
         # Still return 200 - image is uploaded, AI processing can fail
         return JSONResponse(
             status_code=200,
@@ -829,13 +642,16 @@ async def process_image(request: ImageProcessRequest):
 async def process_image_async(request: ImageProcessRequest):
     """Async task to process image with AI"""
     try:
-        print(f"Starting AI processing for image_id: {request.image_id}, URL: {request.image_url}")
+        log_info("Starting AI processing", image_id=request.image_id)
         
         # Get AI analysis
         ai_result = await process_image_with_ai(request.image_url)
         
-        print(f"AI processing completed for image_id: {request.image_id}")
-        print(f"Result: tags={len(ai_result.get('tags', []))}, description length={len(ai_result.get('description', ''))}, colors={len(ai_result.get('colors', []))}")
+        log_info("AI processing completed", 
+                image_id=request.image_id,
+                tags_count=len(ai_result.get('tags', [])),
+                description_length=len(ai_result.get('description', '')),
+                colors_count=len(ai_result.get('colors', [])))
         
         # Update metadata in database
         result = supabase.table("image_metadata").update({
@@ -845,12 +661,13 @@ async def process_image_async(request: ImageProcessRequest):
             "ai_processing_status": "completed"
         }).eq("image_id", request.image_id).execute()
         
-        print(f"Updated metadata to completed: {result}")
+        log_debug("Updated metadata to completed", image_id=request.image_id)
         
     except Exception as e:
-        print(f"Async processing error for image_id {request.image_id}: {e}")
+        log_error("Async processing error", e, image_id=request.image_id)
         import traceback
-        traceback.print_exc()
+        if not os.getenv("ENVIRONMENT") == "production":
+            traceback.print_exc()  # Only show traceback in dev
         
         # Update status to failed
         try:
@@ -858,7 +675,7 @@ async def process_image_async(request: ImageProcessRequest):
                 "ai_processing_status": "failed"
             }).eq("image_id", request.image_id).execute()
         except Exception as update_error:
-            print(f"Error updating status to failed: {update_error}")
+            log_error("Error updating status to failed", update_error, image_id=request.image_id)
 
 
 @app.get("/api/search")

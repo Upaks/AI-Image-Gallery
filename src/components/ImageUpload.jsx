@@ -2,6 +2,7 @@ import { useState, useRef } from 'react'
 import { supabase } from '../lib/supabase'
 import { Upload, X, Check } from 'lucide-react'
 import axios from 'axios'
+import { logError, logWarn, logInfo } from '../utils/logger'
 
 export default function ImageUpload({ user, onUploadComplete }) {
   const [isDragging, setIsDragging] = useState(false)
@@ -49,7 +50,7 @@ export default function ImageUpload({ user, onUploadComplete }) {
         try {
           await uploadFile(file)
         } catch (error) {
-          console.error(`Error uploading ${file.name}:`, error)
+          logError('Image upload failed', error, { filename: file.name })
           setError(`Failed to upload ${file.name}: ${error.message || error}`)
         }
       }
@@ -59,7 +60,7 @@ export default function ImageUpload({ user, onUploadComplete }) {
         onUploadComplete()
       }
     } catch (error) {
-      console.error('Upload error:', error)
+      logError('Upload error', error)
       setError(`Upload failed: ${error.message || error}`)
     } finally {
       setUploading(false)
@@ -137,9 +138,12 @@ export default function ImageUpload({ user, onUploadComplete }) {
       user_id: user.id,
       image_url: originalUrl
     }).then(response => {
-      console.log('AI processing started:', response.data)
+      logInfo('AI processing started', { imageId: imageData.id })
     }).catch(error => {
-      console.warn('AI processing failed to start (image still uploaded):', error.message)
+      logWarn('AI processing failed to start (image still uploaded)', { 
+        imageId: imageData.id,
+        error: error.message 
+      })
       // Image is uploaded successfully, AI processing can be retried later
       // Status will remain 'pending'
     })
