@@ -18,9 +18,8 @@ COPY requirements.txt .
 # Install PyTorch CPU version first, then other packages
 RUN pip install --no-cache-dir --upgrade pip setuptools wheel && \
     pip install --no-cache-dir --extra-index-url https://download.pytorch.org/whl/cpu \
-        torch==2.1.2+cpu \
-        torchvision==0.16.2+cpu \
-        --index-url https://download.pytorch.org/whl/cpu && \
+        torch==2.1.1+cpu \
+        torchvision==0.16.1+cpu && \
     pip install --no-cache-dir -r requirements.txt && \
     pip cache purge && \
     find /usr/local/lib/python3.11/site-packages -type d -name "__pycache__" -exec rm -r {} + 2>/dev/null || true && \
