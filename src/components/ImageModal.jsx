@@ -221,10 +221,12 @@ export default function ImageModal({ image, user, onClose, onFindSimilar, onMeta
       >
         {/* Header */}
         <div className="flex items-center justify-between p-4 border-b border-gray-200 dark:border-gray-700">
-          <h2 className="text-lg font-semibold text-gray-900 dark:text-white">{image.filename}</h2>
+          <h2 className="text-lg font-semibold text-gray-900 dark:text-white truncate min-w-0 flex-1 mr-4" title={image.filename}>
+            {image.filename}
+          </h2>
           <button
             onClick={onClose}
-            className="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition"
+            className="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition flex-shrink-0"
           >
             <X className="w-5 h-5 text-gray-500 dark:text-gray-400" />
           </button>
