@@ -18,8 +18,8 @@ COPY requirements.txt .
 # Install PyTorch CPU version first, then other packages
 RUN pip install --no-cache-dir --upgrade pip setuptools wheel && \
     pip install --no-cache-dir --extra-index-url https://download.pytorch.org/whl/cpu \
-        torch==2.0.0+cpu \
-        torchvision==0.15.0+cpu \
+        torch==2.1.2+cpu \
+        torchvision==0.16.2+cpu \
         --index-url https://download.pytorch.org/whl/cpu && \
     pip install --no-cache-dir -r requirements.txt && \
     pip cache purge && \
@@ -55,9 +55,9 @@ ENV PYTHONUNBUFFERED=1 \
     PIP_NO_CACHE_DIR=1 \
     PIP_DISABLE_PIP_VERSION_CHECK=1
 
-# Expose port (Railway sets $PORT)
-EXPOSE 8000
+# Expose port (7860 for Hugging Face Spaces, Railway uses dynamic PORT)
+EXPOSE 7860
 
-# Start command - Railway sets $PORT automatically
-CMD ["sh", "-c", "uvicorn main:app --host 0.0.0.0 --port ${PORT:-8000}"]
+# Start command - Use PORT env variable, default to 7860 for Hugging Face Spaces, 8000 for Railway
+CMD ["sh", "-c", "uvicorn main:app --host 0.0.0.0 --port ${PORT:-7860}"]
 
