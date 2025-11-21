@@ -4,6 +4,8 @@ A production-ready, full-stack web application where users can upload images, ge
 
 **Live Demo**: [Frontend](https://ai-image-gallery-sable.vercel.app) | [Backend API](https://upaks-ai-image-gallery-api.hf.space)
 
+**Demo Video**: [Watch Full Walkthrough](https://www.loom.com/share/539d3751845847b6b61c6ff01ce53dfc)
+
 ---
 
 ## 🎯 Project Overview
@@ -860,23 +862,28 @@ See [CONTRIBUTING.md](./CONTRIBUTING.md) for contribution guidelines.
 
 ## 🎬 Demo & Screenshots
 
-*Add screenshots or demo video here*
+### 📹 Demo Video
 
-### Screenshots Needed:
-1. Sign in/Sign up page
-2. Gallery view with images
-3. Image modal with AI metadata
-4. Search functionality
-5. Dark mode toggle
-6. Tag editing interface
-7. Export JSON feature
+**[Watch Full Demo Video](https://www.loom.com/share/539d3751845847b6b61c6ff01ce53dfc)**
 
-### Demo Video
-*Link to demo video showing:*
-- User flow from signup to image upload
-- AI processing in action
-- Search and filter features
-- Bonus features (tag editing, dark mode, export)
+The demo video showcases:
+- Complete user flow from signup to image upload
+- AI processing in action with real-time status updates
+- Search and filter features (text search, color filter, similar images)
+- All bonus features (tag editing, dark mode, JSON export, image download)
+- Responsive design and mobile-friendly interface
+- Technical architecture overview
+
+### Screenshots
+
+Key screenshots from the application:
+1. **Sign in/Sign up page** - Clean authentication interface
+2. **Gallery view** - Image grid with processing indicators
+3. **Image modal** - AI-generated metadata (tags, description, colors)
+4. **Search functionality** - Real-time search results
+5. **Dark mode toggle** - Theme switching with persistence
+6. **Tag editing interface** - Add/remove tags with inline editing
+7. **Export JSON feature** - Download search results with metadata
 
 ---
 
