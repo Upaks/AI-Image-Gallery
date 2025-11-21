@@ -229,7 +229,7 @@ export default function ImageUpload({ user, onUploadComplete }) {
         </div>
 
         {error && (
-          <div className="p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 text-red-700 dark:text-red-400 rounded text-sm">
+          <div className="p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 text-red-700 dark:text-red-400 rounded text-sm break-words">
             {error}
           </div>
         )}
@@ -243,18 +243,18 @@ export default function ImageUpload({ user, onUploadComplete }) {
         </button>
 
         {Object.keys(uploadProgress).length > 0 && (
-          <div className="mt-4 space-y-2">
+          <div className="mt-4 space-y-2 max-w-full overflow-hidden">
             {Object.entries(uploadProgress).map(([filename, status]) => (
-              <div key={filename} className="flex items-center justify-center space-x-2 text-sm">
+              <div key={filename} className="flex items-center justify-center space-x-2 text-sm w-full px-2">
                 {status === 'completed' ? (
                   <>
-                    <Check className="w-4 h-4 text-green-500 dark:text-green-400" />
-                    <span className="text-green-600 dark:text-green-400">{filename}</span>
+                    <Check className="w-4 h-4 text-green-500 dark:text-green-400 flex-shrink-0" />
+                    <span className="text-green-600 dark:text-green-400 truncate min-w-0" title={filename}>{filename}</span>
                   </>
                 ) : (
                   <>
-                    <div className="w-4 h-4 border-2 border-blue-600 dark:border-blue-400 border-t-transparent rounded-full animate-spin" />
-                    <span className="text-gray-600 dark:text-gray-400">{filename}</span>
+                    <div className="w-4 h-4 border-2 border-blue-600 dark:border-blue-400 border-t-transparent rounded-full animate-spin flex-shrink-0" />
+                    <span className="text-gray-600 dark:text-gray-400 truncate min-w-0" title={filename}>{filename}</span>
                   </>
                 )}
               </div>

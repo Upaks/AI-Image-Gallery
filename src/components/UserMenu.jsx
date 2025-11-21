@@ -50,7 +50,7 @@ export default function UserMenu({ user }) {
           <div className="w-8 h-8 bg-blue-600 dark:bg-blue-500 rounded-full flex items-center justify-center">
             <User className="w-5 h-5 text-white" />
           </div>
-          <span className="hidden sm:block text-sm font-medium text-gray-700 dark:text-gray-300">
+          <span className="hidden sm:block text-sm font-medium text-gray-700 dark:text-gray-300 max-w-[150px] truncate">
             {user.email}
           </span>
           <ChevronDown className="w-4 h-4 text-gray-500 dark:text-gray-400" />
@@ -58,9 +58,9 @@ export default function UserMenu({ user }) {
       </div>
 
       {isOpen && (
-        <div className="absolute right-0 mt-2 w-48 bg-white dark:bg-gray-800 rounded-lg shadow-lg border border-gray-200 dark:border-gray-700 py-1 z-50">
+        <div className="absolute right-0 mt-2 w-56 min-w-[200px] max-w-[90vw] bg-white dark:bg-gray-800 rounded-lg shadow-lg border border-gray-200 dark:border-gray-700 py-1 z-50">
           <div className="px-4 py-2 border-b border-gray-200 dark:border-gray-700">
-            <p className="text-sm font-medium text-gray-900 dark:text-gray-100">{user.email}</p>
+            <p className="text-sm font-medium text-gray-900 dark:text-gray-100 truncate" title={user.email}>{user.email}</p>
           </div>
           <button
             onClick={toggleTheme}
