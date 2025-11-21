@@ -889,6 +889,7 @@ Key screenshots from the application:
 
 ## 📚 Additional Documentation
 
+- [Development Timeline & Time Breakdown](./DEVELOPMENT_TIMELINE.md) - Detailed breakdown of time spent on project development, including all phases from planning to deployment
 - [AI Service Comparison](./AI_SERVICE_COMPARISON.md) - Detailed AI service analysis
 - [Database Schema](./database/schema.sql) - Complete database schema
 - [Storage Policies](./database/storage-policies.sql) - Supabase Storage policies
